@@ -1,7 +1,8 @@
 import { useLocation } from 'react-router-dom';
 import { useHotel } from '../../context/HotelContext';
+import { Btn } from '../UI/index.jsx';
 import * as Select from '@radix-ui/react-select';
-import { ChevronDown, Check, Building2, Bell, CircleUser } from 'lucide-react';
+import { ChevronDown, Check, Building2, Bell, LogOut } from 'lucide-react';
 
 const TITLES = {
   '/':             { title:'Vista General',       sub:'Recepción y estado de habitaciones' },
@@ -14,7 +15,7 @@ const TITLES = {
 
 export default function Header() {
   const { pathname } = useLocation();
-  const { sucursales, sucursalActiva, setSucursalActiva } = useHotel();
+  const { sucursales, sucursalActiva, setSucursalActiva, logout } = useHotel();
   const info = TITLES[pathname] ?? { title:'Hotel Admin', sub:'' };
 
   return (
@@ -55,10 +56,10 @@ export default function Header() {
           <Bell size={16} color="var(--text-muted)" />
         </button>
 
-        {/* Avatar */}
-        <div style={s.avatar}>
-          <CircleUser size={18} color="var(--accent)" />
-        </div>
+        {/* Cerrar Sesión */}
+        <Btn variant="ghost" size="sm" icon={<LogOut size={14} />} onClick={logout}>
+          Cerrar Sesión
+        </Btn>
       </div>
     </header>
   );
@@ -87,10 +88,5 @@ const s = {
     width:32, height:32, borderRadius:'var(--r-md)',
     border:'1px solid var(--border)', background:'transparent',
     display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
-  },
-  avatar: {
-    width:32, height:32, borderRadius:'var(--r-md)',
-    background:'var(--accent-light)', border:'1px solid var(--accent-mid)',
-    display:'flex', alignItems:'center', justifyContent:'center',
   },
 };

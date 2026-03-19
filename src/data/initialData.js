@@ -29,19 +29,8 @@ export const initialData = {
     { id: 5, nombre: '70',  visible: true, sucursalId: 2 },
     { id: 6, nombre: '120', visible: true, sucursalId: 2 },
   ],
-  habitaciones: [
-    { id:1,  numero:'101', categoriaId:1, ubicacionId:1, sucursalId:1, tarifaIds:[1,2], estado:'DISPONIBLE',    visible:true  },
-    { id:2,  numero:'102', categoriaId:4, ubicacionId:1, sucursalId:1, tarifaIds:[1],   estado:'OCUPADO',       visible:true  },
-    { id:3,  numero:'103', categoriaId:2, ubicacionId:1, sucursalId:1, tarifaIds:[3],   estado:'LIMPIEZA',      visible:true  },
-    { id:4,  numero:'201', categoriaId:3, ubicacionId:2, sucursalId:1, tarifaIds:[2],   estado:'DISPONIBLE',    visible:true  },
-    { id:5,  numero:'205', categoriaId:4, ubicacionId:2, sucursalId:1, tarifaIds:[1,3], estado:'MANTENIMIENTO', visible:true  },
-    { id:6,  numero:'301', categoriaId:5, ubicacionId:3, sucursalId:1, tarifaIds:[4],   estado:'DISPONIBLE',    visible:true  },
-    { id:7,  numero:'305', categoriaId:5, ubicacionId:3, sucursalId:1, tarifaIds:[4],   estado:'DISPONIBLE',    visible:true  },
-    { id:8,  numero:'401', categoriaId:2, ubicacionId:4, sucursalId:1, tarifaIds:[3,4], estado:'OCUPADO',       visible:true  },
-    { id:9,  numero:'402', categoriaId:2, ubicacionId:4, sucursalId:1, tarifaIds:[3],   estado:'DISPONIBLE',    visible:false },
-    { id:10, numero:'101', categoriaId:7, ubicacionId:5, sucursalId:2, tarifaIds:[5],   estado:'DISPONIBLE',    visible:true  },
-    { id:11, numero:'201', categoriaId:6, ubicacionId:6, sucursalId:2, tarifaIds:[6],   estado:'OCUPADO',       visible:true  },
-  ],
+  // Las habitaciones se cargan desde el backend en tiempo de ejecución.
+  habitaciones: [],
 };
 
 export const ESTADOS = {

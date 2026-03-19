@@ -4,6 +4,7 @@ import * as Select       from '@radix-ui/react-select';
 import * as Switch       from '@radix-ui/react-switch';
 import * as Tooltip      from '@radix-ui/react-tooltip';
 import * as Separator    from '@radix-ui/react-separator';
+import * as Popover      from '@radix-ui/react-popover';
 import { X, ChevronDown, Check, AlertTriangle } from 'lucide-react';
 
 /* ─── PROVEEDOR DE INFORMACIÓN SOBRE HERRAMIENTAS (envolver App) ─────────────────── */
@@ -406,3 +407,6 @@ export function SearchInput({ value, onChange, placeholder='Buscar...' }) {
     </div>
   );
 }
+
+// Export Popover components
+export { Popover };
