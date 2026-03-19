@@ -13,7 +13,7 @@ const NAV = [
 export default function Sidebar() {
   return (
     <aside style={s.root}>
-      {/* Logo */}
+      {/* Logotipo */}
       <div style={s.logo}>
         <div style={s.logoMark}>
           <Hotel size={18} color="var(--accent)" strokeWidth={2} />
@@ -26,7 +26,7 @@ export default function Sidebar() {
 
       <div style={s.divider} />
 
-      {/* Nav */}
+      {/* Navegación */}
       <nav style={s.nav}>
         <p style={s.groupLabel}>MÓDULOS</p>
         {NAV.map(({ to, icon: Icon, label, sub }) => (

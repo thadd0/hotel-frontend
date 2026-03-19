@@ -6,12 +6,12 @@ import * as Tooltip      from '@radix-ui/react-tooltip';
 import * as Separator    from '@radix-ui/react-separator';
 import { X, ChevronDown, Check, AlertTriangle } from 'lucide-react';
 
-/* ─── TOOLTIP PROVIDER (wrap App) ─────────────────── */
+/* ─── PROVEEDOR DE INFORMACIÓN SOBRE HERRAMIENTAS (envolver App) ─────────────────── */
 export function TooltipProvider({ children }) {
   return <Tooltip.Provider delayDuration={400}>{children}</Tooltip.Provider>;
 }
 
-/* ─── BUTTON ───────────────────────────────────────── */
+/* ─── BOTÓN ───────────────────────────────────────── */
 const BTN_VARIANTS = {
   primary: { bg:'var(--accent)',    color:'#fff',               border:'transparent',         hoverBg:'var(--accent-dark)' },
   ghost:   { bg:'transparent',     color:'var(--text-2)',       border:'var(--border)',        hoverBg:'var(--surface-2)'   },
@@ -50,7 +50,7 @@ export function Btn({ children, variant='primary', size='md', icon, onClick, typ
   );
 }
 
-/* ─── BADGE ─────────────────────────────────────────── */
+/* ─── INSIGNIA ─────────────────────────────────────────── */
 export function Badge({ label, color, bg, border, dot }) {
   return (
     <span style={{
@@ -65,7 +65,7 @@ export function Badge({ label, color, bg, border, dot }) {
   );
 }
 
-/* ─── RADIX DIALOG (Modal) ──────────────────────────── */
+/* ─── DIÁLOGO RADIX (Modal) ──────────────────────────── */
 export function Modal({ open, onOpenChange, title, children, width=480 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -101,7 +101,7 @@ export function Modal({ open, onOpenChange, title, children, width=480 }) {
   );
 }
 
-/* ─── RADIX ALERT DIALOG (Confirm) ─────────────────── */
+/* ─── DIÁLOGO DE ALERTA RADIX (Confirmar) ─────────────────── */
 export function ConfirmDialog({ open, onOpenChange, onConfirm, message='¿Confirmas la eliminación de este registro?' }) {
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -144,7 +144,7 @@ export function ConfirmDialog({ open, onOpenChange, onConfirm, message='¿Confir
   );
 }
 
-/* ─── RADIX SELECT ──────────────────────────────────── */
+/* ─── SELECCIÓN RADIX ──────────────────────────────────── */
 const CLEAR_VALUE = '__clear__';
 
 export function RSelect({ value, onValueChange, placeholder, options=[], triggerStyle }) {
@@ -199,7 +199,7 @@ export function RSelect({ value, onValueChange, placeholder, options=[], trigger
   );
 }
 
-/* ─── RADIX SWITCH ──────────────────────────────────── */
+/* ─── INTERRUPTOR RADIX ──────────────────────────────────── */
 export function SwitchField({ checked, onCheckedChange, label }) {
   return (
     <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -215,7 +215,7 @@ export function SwitchField({ checked, onCheckedChange, label }) {
   );
 }
 
-/* ─── TOOLTIP ────────────────────────────────────────── */
+/* ─── INFORMACIÓN SOBRE HERRAMIENTAS ────────────────────────────────────────── */
 export function Tip({ children, label }) {
   return (
     <Tooltip.Root>
@@ -230,7 +230,7 @@ export function Tip({ children, label }) {
   );
 }
 
-/* ─── SEPARATOR ─────────────────────────────────────── */
+/* ─── SEPARADOR ─────────────────────────────────────── */
 export function Sep({ style: s }) {
   return (
     <Separator.Root
@@ -239,7 +239,7 @@ export function Sep({ style: s }) {
   );
 }
 
-/* ─── FORM FIELD ─────────────────────────────────────── */
+/* ─── CAMPO DE FORMULARIO ─────────────────────────────────────── */
 export function Field({ label, children, error, required, hint }) {
   return (
     <div style={{ marginBottom:16 }}>
@@ -275,7 +275,7 @@ export const inputBlur = (e) => {
   e.target.style.boxShadow   = 'none';
 };
 
-/* ─── CARD ───────────────────────────────────────────── */
+/* ─── TARJETA ───────────────────────────────────────────── */
 export function Card({ children, style: extra, padding }) {
   return (
     <div style={{
@@ -290,7 +290,7 @@ export function Card({ children, style: extra, padding }) {
   );
 }
 
-/* ─── TABLE ──────────────────────────────────────────── */
+/* ─── TABLA ──────────────────────────────────────────── */
 export function Table({ headers, children }) {
   return (
     <div style={{ overflowX:'auto' }}>
@@ -320,7 +320,7 @@ export const tdStyle = {
   borderBottom:'1px solid var(--border)', verticalAlign:'middle',
 };
 
-/* ─── ACTION BUTTONS ─────────────────────────────────── */
+/* ─── BOTONES DE ACCIÓN ─────────────────────────────────── */
 export function EditBtn({ onClick }) {
   return (
     <Tip label="Editar">
@@ -355,7 +355,7 @@ export function DeleteBtn({ onClick }) {
   );
 }
 
-/* ─── PAGINATION ─────────────────────────────────────── */
+/* ─── PAGINACIÓN ─────────────────────────────────────── */
 export function Pagination({ page, total, perPage=10, onChange }) {
   const pages = Math.ceil(total / perPage);
   if (pages <= 1) return null;
@@ -377,7 +377,7 @@ const pgBtn = {
 };
 const pgActive = { background:'var(--accent)', color:'#fff', border:'1px solid var(--accent)' };
 
-/* ─── EMPTY STATE ────────────────────────────────────── */
+/* ─── ESTADO VACÍO ────────────────────────────────────── */
 export function EmptyState({ message='No hay registros', icon }) {
   return (
     <div style={{
@@ -390,7 +390,7 @@ export function EmptyState({ message='No hay registros', icon }) {
   );
 }
 
-/* ─── SEARCH INPUT ───────────────────────────────────── */
+/* ─── ENTRADA DE BÚSQUEDA ───────────────────────────────────── */
 export function SearchInput({ value, onChange, placeholder='Buscar...' }) {
   return (
     <div style={{ position:'relative', display:'inline-flex', alignItems:'center' }}>

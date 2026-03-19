@@ -70,7 +70,7 @@ export default function Habitaciones() {
 
   return (
     <div className="page-anim">
-      {/* Filters row */}
+      {/* Filtros */}
       <Card padding="12px 16px" style={{ marginBottom:18 }}>
         <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
           <RSelect value={fEstado}  onValueChange={v=>{setFEstado(v); setPage(1);}} placeholder="Estado" options={ESTADO_KEYS.map(k=>({value:k,label:k}))} />

@@ -32,7 +32,7 @@ export default function RecepcionGeneral() {
 
   return (
     <div className="page-anim">
-      {/* Stats row */}
+      {/* Estadísticas */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:12, marginBottom:24 }}>
         {[...ESTADO_KEYS, '__total__'].map(k => {
           const isTotal = k === '__total__';
@@ -78,7 +78,7 @@ export default function RecepcionGeneral() {
         </div>
       </Card>
 
-      {/* Grid */}
+      {/* Cuadrícula */}
       {filtered.length === 0 ? (
         <Card padding="60px 20px" style={{ textAlign:'center' }}>
           <Layers size={36} style={{ opacity:.25, marginBottom:10, display:'block', margin:'0 auto 10px' }} />
@@ -101,11 +101,11 @@ export default function RecepcionGeneral() {
               onMouseEnter={e=>{ e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='var(--shadow-md)'; }}
               onMouseLeave={e=>{ e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='var(--shadow-sm)'; }}
               >
-                {/* Color strip */}
+                {/* Color */}
                 <div style={{ height:4, background:est.dot }} />
 
                 <div style={{ padding:'14px 14px 10px' }}>
-                  {/* Status badge + number */}
+                  {/* Barra de estado */}
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
                     <Badge label={est.label} color={est.color} bg={est.bg} border={est.border} dot={est.dot} />
                     <button
@@ -122,13 +122,13 @@ export default function RecepcionGeneral() {
                     </button>
                   </div>
 
-                  {/* Number */}
+                  {/* Número */}
                   <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
                     <BedDouble size={20} color={est.dot} strokeWidth={1.5} />
                     <span style={{ fontSize:28, fontWeight:800, color:est.color, lineHeight:1 }}>{hab.numero}</span>
                   </div>
 
-                  {/* Info */}
+                  {/* Información */}
                   <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:500, marginBottom:6, textTransform:'uppercase', letterSpacing:'.3px' }}>
                     {cat?.nombre}
                   </div>
@@ -151,7 +151,7 @@ export default function RecepcionGeneral() {
                   )}
                 </div>
 
-                {/* Quick state selector */}
+                {/* Selector de estado rápido */}
                 <div style={{
                   borderTop:`1px solid ${est.border}`, padding:'8px 10px',
                   display:'flex', flexWrap:'wrap', gap:4, background:est.bg,

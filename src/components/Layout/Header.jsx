@@ -27,7 +27,7 @@ export default function Header() {
       </div>
 
       <div style={s.right}>
-        {/* Radix Select for branch */}
+        {/* Selección Radix para sucursal */}
         <Select.Root value={String(sucursalActiva)} onValueChange={v=>setSucursalActiva(Number(v))}>
           <Select.Trigger style={s.branchTrigger} aria-label="Sucursal">
             <Building2 size={14} color="var(--accent)" />
@@ -50,7 +50,7 @@ export default function Header() {
           </Select.Portal>
         </Select.Root>
 
-        {/* Bell */}
+        {/* Campana */}
         <button style={s.iconBtn}>
           <Bell size={16} color="var(--text-muted)" />
         </button>
