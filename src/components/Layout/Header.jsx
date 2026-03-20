@@ -15,7 +15,7 @@ const TITLES = {
 
 export default function Header() {
   const { pathname } = useLocation();
-  const { sucursales, sucursalActiva, setSucursalActiva, logout } = useHotel();
+  const { sucursales, sucursalActiva, setSucursalActiva, logout, userRole } = useHotel();
   const info = TITLES[pathname] ?? { title:'Hotel Admin', sub:'' };
 
   return (
@@ -28,28 +28,23 @@ export default function Header() {
       </div>
 
       <div style={s.right}>
-        {/* Selección Radix para sucursal */}
-        <Select.Root value={String(sucursalActiva)} onValueChange={v=>setSucursalActiva(Number(v))}>
-          <Select.Trigger style={s.branchTrigger} aria-label="Sucursal">
-            <Building2 size={14} color="var(--accent)" />
-            <Select.Value />
-            <ChevronDown size={13} color="var(--text-muted)" style={{ marginLeft:'auto' }} />
-          </Select.Trigger>
-          <Select.Portal>
-            <Select.Content data-radix-select-content position="popper" sideOffset={6}>
-              <Select.Viewport style={{ padding:4 }}>
-                {sucursales.map(s2=>(
-                  <Select.Item key={s2.id} value={String(s2.id)} data-radix-select-item>
-                    <Select.ItemIndicator style={{ marginLeft:'auto', paddingLeft:8 }}>
-                      <Check size={12} />
-                    </Select.ItemIndicator>
-                    <Select.ItemText>{s2.nombre}</Select.ItemText>
-                  </Select.Item>
-                ))}
-              </Select.Viewport>
-            </Select.Content>
-          </Select.Portal>
-        </Select.Root>
+        {/* Role Badge */}
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 10px',
+          background: userRole === 'admin' ? 'var(--purple-light)' : 'var(--green-light)',
+          borderRadius: 'var(--r-md)',
+          border: `1px solid ${userRole === 'admin' ? 'var(--purple)' : 'var(--green)'}`,
+          fontSize: 12,
+          fontWeight: 700,
+          color: userRole === 'admin' ? 'var(--purple)' : 'var(--green)',
+        }}>
+          <span style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {userRole === 'admin' ? 'Administración' : 'Recepción'}
+          </span>
+        </div>
 
         {/* Campana */}
         <button style={s.iconBtn}>

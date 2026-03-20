@@ -8,7 +8,7 @@ import { BedDouble, Layers, ChevronDown, LogIn, LogOut } from 'lucide-react';
 const ESTADO_KEYS = Object.keys(ESTADOS);
 
 export default function RecepcionGeneral() {
-  const { habitaciones, categorias, ubicaciones, tarifas, cambiarEstado, checkIn, checkOut, sucursalActiva } = useHotel();
+  const { habitaciones, categorias, ubicaciones, tarifas, cambiarEstado, checkIn, checkOut } = useHotel();
   const [fUbicacion, setFUbicacion] = useState('');
   const [fEstado,    setFEstado]    = useState('');
   const [busqueda,   setBusqueda]   = useState('');
@@ -21,7 +21,7 @@ export default function RecepcionGeneral() {
     return mU && mE && mB;
   });
 
-  const habitacionesDisponibles = habitaciones.filter(h => h.estado === 'DISPONIBLE' && h.sucursalId === sucursalActiva);
+  const habitacionesDisponibles = habitaciones.filter(h => h.estado === 'DISPONIBLE');
 
   const handleCheckIn = (persons, roomSelections, nights, startDate, endDate) => {
     checkIn(persons, roomSelections, nights, startDate, endDate);
@@ -254,6 +254,7 @@ export default function RecepcionGeneral() {
         habitacionesDisponibles={habitacionesDisponibles}
         tarifas={tarifas}
         categorias={categorias}
+        ubicaciones={ubicaciones}
         onCheckIn={handleCheckIn}
       />
     </div>

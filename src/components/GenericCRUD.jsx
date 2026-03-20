@@ -3,7 +3,7 @@ import {
   Btn, Card, Table, tdStyle, EditBtn, DeleteBtn,
   Modal, ConfirmDialog, EmptyState, Pagination,
   Field, inputStyle, inputFocus, inputBlur, SwitchField,
-} from '../components/UI/index.jsx';
+} from './UI/index.jsx';
 import { Plus } from 'lucide-react';
 
 const PER_PAGE = 10;
@@ -11,7 +11,7 @@ const PER_PAGE = 10;
 export default function GenericCRUD({
   items, onAdd, onUpdate, onDelete,
   columns, formFields, emptyMsg, emptyIcon,
-  modalTitle = 'Registro', sucursalActiva,
+  modalTitle = 'Registro',
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId,    setEditId]    = useState(null);
@@ -21,7 +21,7 @@ export default function GenericCRUD({
   const [page,      setPage]      = useState(1);
 
   const buildEmpty = () => {
-    const obj = { visible:true, sucursalId:sucursalActiva };
+    const obj = { visible:true };
     formFields.forEach(f => { if (!(f.key in obj)) obj[f.key] = ''; });
     return obj;
   };
@@ -29,21 +29,21 @@ export default function GenericCRUD({
   const openNew  = () => { setEditId(null); setForm(buildEmpty()); setErrors({}); setModalOpen(true); };
   const openEdit = (item) => {
     setEditId(item.id);
-    const obj = { visible:item.visible??true, sucursalId:item.sucursalId };
-    formFields.forEach(f => { obj[f.key] = item[f.key]??''; });
+    const obj = { visible:item.visible ?? true };
+    formFields.forEach(f => { obj[f.key] = item[f.key] ?? ''; });
     setForm(obj); setErrors({}); setModalOpen(true);
   };
 
   const validate = () => {
     const e = {};
-    formFields.forEach(f => { if (f.required && !String(form[f.key]??'').trim()) e[f.key] = `${f.label} es requerido`; });
+    formFields.forEach(f => { if (f.required && !String(form[f.key] ?? '').trim()) e[f.key] = `${f.label} es requerido`; });
     setErrors(e);
     return !Object.keys(e).length;
   };
 
   const handleSubmit = () => {
     if (!validate()) return;
-    const payload = { ...form, sucursalId:sucursalActiva };
+    const payload = { ...form };
     editId ? onUpdate(editId, payload) : onAdd(payload);
     setModalOpen(false);
   };
@@ -69,7 +69,7 @@ export default function GenericCRUD({
               >
                 {columns.map(col => (
                   <td key={col.key} style={tdStyle}>
-                    {col.render ? col.render(item) : (item[col.key]??'—')}
+                    {col.render ? col.render(item) : (item[col.key] ?? '—')}
                   </td>
                 ))}
                 <td style={{ ...tdStyle, width:80 }}>
@@ -87,13 +87,13 @@ export default function GenericCRUD({
         </div>
       </Card>
 
-      <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId?`Editar ${modalTitle}`:`Nuevo/a ${modalTitle}`} width={460}>
+      <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId ? `Editar ${modalTitle}` : `Nuevo/a ${modalTitle}`} width={460}>
         {formFields.map(f => (
           <Field key={f.key} label={f.label} error={errors[f.key]} required={f.required}>
             <input
               style={inputStyle}
-              type={f.type??'text'}
-              value={form[f.key]??''}
+              type={f.type ?? 'text'}
+              value={form[f.key] ?? ''}
               onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
               placeholder={f.placeholder}
               onFocus={inputFocus}
@@ -105,12 +105,12 @@ export default function GenericCRUD({
           <SwitchField
             checked={!!form.visible}
             onCheckedChange={v=>setForm(p=>({...p,visible:v}))}
-            label={form.visible?'Visible':'Oculto'}
+            label={form.visible ? 'Visible' : 'Oculto'}
           />
         </Field>
         <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' }}>
           <Btn variant="ghost" onClick={()=>setModalOpen(false)}>Cancelar</Btn>
-          <Btn onClick={handleSubmit}>{editId?'Guardar cambios':'Crear'}</Btn>
+          <Btn onClick={handleSubmit}>{editId ? 'Guardar cambios' : 'Crear'}</Btn>
         </div>
       </Modal>
 
@@ -122,3 +122,4 @@ export default function GenericCRUD({
     </div>
   );
 }
+

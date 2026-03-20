@@ -12,7 +12,7 @@ const PER_PAGE = 8;
 const empty = { numero:'', categoriaId:'', ubicacionId:'', tarifaIds:[], estado:'DISPONIBLE', visible:true };
 
 export default function Habitaciones() {
-  const { habitaciones, categorias, ubicaciones, tarifas, addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado } = useHotel();
+  const { habitaciones, categorias, ubicaciones, addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado } = useHotel();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId,    setEditId]    = useState(null);
   const [form,      setForm]      = useState(empty);
@@ -87,12 +87,11 @@ export default function Habitaciones() {
         {paged.length === 0 ? (
           <EmptyState message="No se encontraron habitaciones" icon={<BedDouble size={40}/>} />
         ) : (
-          <Table headers={['Nro','Habitación','Categoría','Ubicación','Tarifas','Estado','Visible','']}>
+          <Table headers={['Nro','Habitación','Categoría','Ubicación','Estado','Visible','']}>
             {paged.map((hab, idx) => {
               const est  = ESTADOS[hab.estado];
               const cat  = categorias.find(c=>c.id===hab.categoriaId);
               const ubic = ubicaciones.find(u=>u.id===hab.ubicacionId);
-              const hTars= tarifas.filter(t=>hab.tarifaIds?.includes(t.id));
               return (
                 <tr key={hab.id}
                   onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'}
@@ -103,18 +102,6 @@ export default function Habitaciones() {
                   <td style={{ ...tdStyle, fontWeight:700 }}>{hab.numero}</td>
                   <td style={tdStyle}><span style={{ fontSize:12.5 }}>{cat?.nombre ?? '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize:12.5 }}>{ubic?.nombre ?? '—'}</span></td>
-                  <td style={tdStyle}>
-                    <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                      {hTars.length
-                        ? hTars.map(t=>(
-                          <span key={t.id} style={{ background:'var(--accent-light)', color:'var(--accent-dark)', fontSize:10.5, fontWeight:700, padding:'2px 7px', borderRadius:'var(--r-full)', border:'1px solid var(--accent-mid)' }}>
-                            S/{t.nombre}
-                          </span>
-                        ))
-                        : <span style={{ color:'var(--text-xmuted)', fontSize:12 }}>—</span>
-                      }
-                    </div>
-                  </td>
                   <td style={tdStyle}>
                     <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
                       <Badge label={est.label} color={est.color} bg={est.bg} border={est.border} dot={est.dot} />
@@ -162,24 +149,7 @@ export default function Habitaciones() {
             {errors.ubicacionId && <p style={{ color:'var(--red)', fontSize:11, marginTop:4 }}>{errors.ubicacionId}</p>}
           </Field>
         </div>
-        <Field label="Tarifas" hint="(selección múltiple)">
-          <div style={{ display:'flex', flexWrap:'wrap', gap:7 }}>
-            {tarifas.map(t=>{
-              const sel = form.tarifaIds.includes(String(t.id));
-              return (
-                <button key={t.id} type="button" onClick={()=>toggleTarifa(String(t.id))} style={{
-                  padding:'5px 13px', borderRadius:'var(--r-full)', cursor:'pointer',
-                  border:`1px solid ${sel?'var(--accent)':'var(--border)'}`,
-                  background: sel?'var(--accent-light)':'var(--surface)',
-                  color: sel?'var(--accent-dark)':'var(--text-2)',
-                  fontSize:13, fontWeight: sel?700:400, transition:'all .12s',
-                }}>
-                  S/ {t.nombre}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
+        {/* Tarifas section removed per request */}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
           <Field label="Estado">
             <RSelect value={form.estado} onValueChange={v=>set('estado',v)} options={ESTADO_KEYS.map(k=>({value:k,label:k}))} triggerStyle={{ width:'100%', minWidth:'unset' }} />

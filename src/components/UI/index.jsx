@@ -67,7 +67,7 @@ export function Badge({ label, color, bg, border, dot }) {
 }
 
 /* ─── DIÁLOGO RADIX (Modal) ──────────────────────────── */
-export function Modal({ open, onOpenChange, title, children, width=480 }) {
+export function Modal({ open, onOpenChange, title, children, description = 'Operación de confirmación', width=480 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>

@@ -1,13 +1,13 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BedDouble, Tag, MapPin, DollarSign, Building2, Hotel } from 'lucide-react';
+import { LayoutDashboard, BedDouble, Tag, MapPin, DollarSign, Hotel } from 'lucide-react';
 
 const NAV = [
   { to:'/',             icon:LayoutDashboard, label:'Recepción',    sub:'Vista general' },
+  { to:'/caja',         icon:DollarSign,      label:'Caja',         sub:'Ingresos/Egresos' },
   { to:'/habitaciones', icon:BedDouble,       label:'Habitaciones', sub:'Gestión de cuartos' },
   { to:'/categorias',   icon:Tag,             label:'Categorías',   sub:'Tipos de habitación' },
-  { to:'/ubicaciones',  icon:MapPin,          label:'Ubicaciones',  sub:'Pisos y zonas' },
-  { to:'/tarifas',      icon:DollarSign,      label:'Tarifas',      sub:'Precios' },
-  { to:'/sucursales',   icon:Building2,       label:'Sucursales',   sub:'Oficinas' },
+  { to:'/ubicaciones',  icon:MapPin,          label:'Pisos',       sub:'Ubicaciones' },
+  { to:'/tarifas',      icon:DollarSign,      label:'Tarifas',     sub:'Precios' },
 ];
 
 export default function Sidebar() {
@@ -66,8 +66,8 @@ export default function Sidebar() {
 
       <div style={s.footer}>
         <div style={s.footerCard}>
-          <div style={{ fontSize:11, fontWeight:600, color:'var(--text-2)', marginBottom:2 }}>Hotel Admin v2.0</div>
-          <div style={{ fontSize:10, color:'var(--text-xmuted)' }}>Frontend · React 19 + Radix UI</div>
+          <div style={{ fontSize:11, fontWeight:600, color:'var(--text-2)', marginBottom:2 }}>Hotel Admin</div>
+          <div style={{ fontSize:10, color:'var(--text-xmuted)' }}>React + Vite + Tailwind</div>
         </div>
       </div>
     </aside>
@@ -136,3 +136,4 @@ const s = {
     border:'1px solid var(--border)', padding:'10px 12px',
   },
 };
+

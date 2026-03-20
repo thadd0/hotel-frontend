@@ -3,8 +3,8 @@ import GenericCRUD from '../../components/GenericCRUD.jsx';
 import { Tag } from 'lucide-react';
 
 export default function Categorias() {
-  const { categorias, addCategoria, updateCategoria, deleteCategoria, sucursalActiva, sucursales } = useHotel();
-  const sucursalNombre = sucursales.find(s=>s.id===sucursalActiva)?.nombre ?? '—';
+  const { categorias, addCategoria, updateCategoria, deleteCategoria } = useHotel();
+  const sucursalNombre = 'Todos los Pisos';
 
   const columns = [
     { key:'nombre', label:'Nombre de categoría' },
@@ -29,7 +29,7 @@ export default function Categorias() {
       emptyMsg="No hay categorías registradas"
       emptyIcon={<Tag size={38}/>}
       modalTitle="Categoría"
-      sucursalActiva={sucursalActiva}
+      // no sucursalActiva
     />
   );
 }

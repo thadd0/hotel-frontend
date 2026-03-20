@@ -1,14 +1,15 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { HotelProvider, useHotel } from './context/HotelContext';
 import { TooltipProvider } from './components/UI/index.jsx';
-import Layout        from './components/Layout/Layout.jsx';
-import Login         from './pages/Login';
+import Layout from './components/Layout/Layout.jsx';
+import Login from './pages/Login';
 import RecepcionGeneral from './pages/RecepcionGeneral';
-import Habitaciones  from './pages/Habitaciones';
-import Categorias    from './pages/Categorias';
-import Ubicaciones   from './pages/Ubicaciones';
-import Tarifas       from './pages/Tarifas';
-import Sucursales    from './pages/Sucursales';
+import Habitaciones from './pages/Habitaciones';
+import Categorias from './pages/Categorias';
+import Ubicaciones from './pages/Ubicaciones';
+import Sucursales from './pages/Sucursales';
+import Tarifas from './pages/Tarifas';
+import Caja from './pages/Caja';
 
 function AppContent() {
   const { isLoggedIn } = useHotel();
@@ -21,12 +22,12 @@ function AppContent() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index               element={<RecepcionGeneral />} />
+          <Route index element={<RecepcionGeneral />} />
           <Route path="habitaciones" element={<Habitaciones />} />
-          <Route path="categorias"   element={<Categorias />} />
-          <Route path="ubicaciones"  element={<Ubicaciones />} />
-          <Route path="tarifas"      element={<Tarifas />} />
-          <Route path="sucursales"   element={<Sucursales />} />
+          <Route path="categorias" element={<Categorias />} />
+          <Route path="ubicaciones" element={<Ubicaciones />} />
+          <Route path="tarifas" element={<Tarifas />} />
+          <Route path="caja" element={<Caja />} />
         </Route>
       </Routes>
     </BrowserRouter>
@@ -42,3 +43,4 @@ export default function App() {
     </HotelProvider>
   );
 }
+

@@ -9,17 +9,33 @@ import { getTarifas, postTarifa, putTarifa, deleteTarifa } from '../api/tarifas'
 const HotelContext = createContext(null);
 
 export function HotelProvider({ children }) {
-  const [sucursales,   setSucursales]   = useState(initialData.sucursales);
+  const [sucursales,   setSucursales]   = useState([{ id: 0, nombre: 'Todos los Pisos' }]);
   const [categorias,   setCategorias]   = useState(initialData.categorias);
   const [ubicaciones,  setUbicaciones]  = useState(initialData.ubicaciones);
   const [tarifas,      setTarifas]      = useState(initialData.tarifas);
-  const [habitaciones, setHabitaciones] = useState([]); // loaded from backend
-  const [sucursalActiva, setSucursalActiva] = useState(1);
+const [habitaciones, setHabitaciones] = useState(initialData.habitaciones); // visual mock data
+const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState('admin'); // 'admin' | 'recepcion'
 
-  const login = useCallback(() => setIsLoggedIn(true), []);
-  const logout = useCallback(() => setIsLoggedIn(false), []);
+  const login = useCallback(() => {
+    setIsLoggedIn(true);
+  }, []);
+
+  const logout = useCallback(() => {
+    setIsLoggedIn(false);
+    setUserRole('admin');
+    localStorage.removeItem('userRole');
+  }, []);
+
+  // Persist role
+  useEffect(() => {
+    const savedRole = localStorage.getItem('userRole');
+    if (savedRole && (savedRole === 'admin' || savedRole === 'recepcion')) {
+      setUserRole(savedRole);
+    }
+  }, []);
 
   const nextId = (arr) => (arr.length ? Math.max(...arr.map(i => i.id)) + 1 : 1);
 
@@ -222,25 +238,14 @@ export function HotelProvider({ children }) {
     ));
   }, []);
 
-  const byBranch = (arr) => arr.filter(i => i.sucursalId === sucursalActiva);
+  const byBranch = (arr) => Array.isArray(arr) ? arr : []; // No filter
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await getHabitaciones();
-        setHabitaciones(data);
-      } catch (error) {
-        console.warn('Failed to load habitaciones from backend:', error);
-      }
-    };
-
-    load();
-  }, []);
+// Disabled API loadAll - force use initialData mocks
+// useEffect(() => { ... }, []);
 
   return (
     <HotelContext.Provider value={{
-      sucursales, sucursalActiva, setSucursalActiva,
-      addSucursal, updateSucursal, deleteSucursal,
+      // No sucursales
 
       categorias:    byBranch(categorias),
       allCategorias: categorias,
@@ -258,7 +263,7 @@ export function HotelProvider({ children }) {
       allHabitaciones: habitaciones,
       addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado, checkIn, checkOut,
 
-      isLoggedIn, login, logout,
+      isLoggedIn, userRole, setUserRole, login, logout,
     }}>
       {children}
     </HotelContext.Provider>

@@ -5,7 +5,7 @@ import { Label } from '@radix-ui/react-label';
 import { LogIn } from 'lucide-react';
 
 export default function Login() {
-  const { login } = useHotel();
+  const { login, setUserRole } = useHotel();
   const [dni, setDni] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,8 +16,12 @@ export default function Login() {
       setError('Por favor, ingresa tu DNI y contraseña');
       return;
     }
-    // Simple mock auth
+    // Mock roles: DNI even=admin, odd=recepcion
+    const role = parseInt(dni) % 2 === 0 ? 'admin' : 'recepcion';
+    setUserRole(role);
+    localStorage.setItem('userRole', role);
     login();
+    setError('');
   };
 
   return (

@@ -3,8 +3,8 @@ import GenericCRUD from '../../components/GenericCRUD.jsx';
 import { MapPin } from 'lucide-react';
 
 export default function Ubicaciones() {
-  const { ubicaciones, addUbicacion, updateUbicacion, deleteUbicacion, sucursalActiva, sucursales } = useHotel();
-  const sucursalNombre = sucursales.find(s=>s.id===sucursalActiva)?.nombre ?? '—';
+  const { ubicaciones, addUbicacion, updateUbicacion, deleteUbicacion } = useHotel();
+  const sucursalNombre = 'Hotel';
 
   const columns = [
     { key:'nombre', label:'Ubicación' },
@@ -29,7 +29,7 @@ export default function Ubicaciones() {
       emptyMsg="No hay ubicaciones registradas"
       emptyIcon={<MapPin size={38}/>}
       modalTitle="Ubicación"
-      sucursalActiva={sucursalActiva}
+      // sucursalActiva removido
     />
   );
 }
