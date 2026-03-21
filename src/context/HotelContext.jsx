@@ -1,10 +1,10 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { initialData } from '../data/initialData';
-import { getHabitaciones, postHabitacion, putHabitacion, deleteHabitacion, postCheckIn, postCheckOut } from '../api/habitaciones';
-import { getCategorias, postCategoria, putCategoria, deleteCategoria } from '../api/categorias';
-import { getSucursales, postSucursal, putSucursal, deleteSucursal } from '../api/sucursales';
-import { getUbicaciones, postUbicacion, putUbicacion, deleteUbicacion } from '../api/ubicaciones';
-import { getTarifas, postTarifa, putTarifa, deleteTarifa } from '../api/tarifas';
+import { getHabitaciones, postHabitacion, putHabitacion, deleteHabitacion as deleteHabitacionAPI, postCheckIn, postCheckOut } from '../api/habitaciones';
+import { getCategorias, postCategoria, putCategoria, deleteCategoria as deleteCategoriaAPI } from '../api/categorias';
+import { getSucursales, postSucursal, putSucursal, deleteSucursal as deleteSucursalAPI } from '../api/sucursales';
+import { getUbicaciones, postUbicacion, putUbicacion, deleteUbicacion as deleteUbicacionAPI } from '../api/ubicaciones';
+import { getTarifas, postTarifa, putTarifa, deleteTarifa as deleteTarifaAPI } from '../api/tarifas';
 
 const HotelContext = createContext(null);
 
@@ -15,6 +15,14 @@ export function HotelProvider({ children }) {
   const [tarifas,      setTarifas]      = useState(initialData.tarifas);
 const [habitaciones, setHabitaciones] = useState(initialData.habitaciones); // visual mock data
 const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
+  const [clientes, setClientes] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hotelClientes');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState('admin'); // 'admin' | 'recepcion'
@@ -29,13 +37,18 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
     localStorage.removeItem('userRole');
   }, []);
 
-  // Persist role
+// Persist role + clientes
   useEffect(() => {
     const savedRole = localStorage.getItem('userRole');
     if (savedRole && (savedRole === 'admin' || savedRole === 'recepcion')) {
       setUserRole(savedRole);
     }
   }, []);
+
+  // Persist clientes
+  useEffect(() => {
+    localStorage.setItem('hotelClientes', JSON.stringify(clientes));
+  }, [clientes]);
 
   const nextId = (arr) => (arr.length ? Math.max(...arr.map(i => i.id)) + 1 : 1);
 
@@ -61,7 +74,7 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
 
   const deleteSucursal = useCallback(async (id) => {
     try {
-      await deleteSucursal(id);
+      await deleteSucursalAPI(id);
       setSucursales(p => p.filter(s => s.id !== id));
     } catch (error) {
       console.warn('Failed to delete sucursal:', error);
@@ -91,7 +104,7 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
 
   const deleteCategoria = useCallback(async (id) => {
     try {
-      await deleteCategoria(id);
+      await deleteCategoriaAPI(id);
       setCategorias(p => p.filter(c => c.id !== id));
     } catch (error) {
       console.warn('Failed to delete categoria:', error);
@@ -151,7 +164,7 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
 
   const deleteTarifa = useCallback(async (id) => {
     try {
-      await deleteTarifa(id);
+      await deleteTarifaAPI(id);
       setTarifas(p => p.filter(t => t.id !== id));
     } catch (error) {
       console.warn('Failed to delete tarifa:', error);
@@ -183,7 +196,7 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
 
   const deleteHabitacion = useCallback(async (id) => {
     try {
-      await deleteHabitacion(id);
+      await deleteHabitacionAPI(id);
       setHabitaciones(p => p.filter(h => h.id !== id));
     } catch (error) {
       console.warn('Failed to delete habitacion:', error);
@@ -238,6 +251,38 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
     ));
   }, []);
 
+  const addCliente = useCallback(async (d) => {
+    try {
+      // Future API
+      // const newCli = await postCliente(d);
+      // setClientes(p => [...p, newCli]);
+    } catch (error) {
+      console.warn('Failed to add cliente:', error);
+    }
+    const newId = nextId(clientes);
+    const newCliente = { id: newId, ...d };
+    setClientes(p => [...p, newCliente]);
+    return newCliente;
+  }, [clientes]);
+
+  const updateCliente = useCallback(async (id, d) => {
+    try {
+      // Future API
+    } catch (error) {
+      console.warn('Failed to update cliente:', error);
+    }
+    setClientes(p => p.map(c => c.id === id ? { ...c, ...d } : c));
+  }, []);
+
+  const deleteCliente = useCallback(async (id) => {
+    try {
+      // Future API
+    } catch (error) {
+      console.warn('Failed to delete cliente:', error);
+    }
+    setClientes(p => p.filter(c => c.id !== id));
+  }, []);
+
   const byBranch = (arr) => Array.isArray(arr) ? arr : []; // No filter
 
 // Disabled API loadAll - force use initialData mocks
@@ -262,6 +307,9 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
       habitaciones:    byBranch(habitaciones),
       allHabitaciones: habitaciones,
       addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado, checkIn, checkOut,
+
+      clientes, allClientes: clientes,
+      addCliente, updateCliente, deleteCliente,
 
       isLoggedIn, userRole, setUserRole, login, logout,
     }}>

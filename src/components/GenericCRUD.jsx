@@ -90,15 +90,30 @@ export default function GenericCRUD({
       <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId ? `Editar ${modalTitle}` : `Nuevo/a ${modalTitle}`} width={460}>
         {formFields.map(f => (
           <Field key={f.key} label={f.label} error={errors[f.key]} required={f.required}>
-            <input
-              style={inputStyle}
-              type={f.type ?? 'text'}
-              value={form[f.key] ?? ''}
-              onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
-              placeholder={f.placeholder}
-              onFocus={inputFocus}
-              onBlur={inputBlur}
-            />
+            {f.type === 'select' ? (
+              <select
+                style={inputStyle}
+                value={form[f.key] ?? ''}
+                onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
+                onFocus={inputFocus}
+                onBlur={inputBlur}
+              >
+                <option value="">{f.placeholder || 'Selecciona una opción'}</option>
+                {f.options?.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                style={inputStyle}
+                type={f.type ?? 'text'}
+                value={form[f.key] ?? ''}
+                onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
+                placeholder={f.placeholder}
+                onFocus={inputFocus}
+                onBlur={inputBlur}
+              />
+            )}
           </Field>
         ))}
         <Field label="Visible">

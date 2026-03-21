@@ -1,5 +1,5 @@
 .tarifasPage {
-  animation: var(--page-anim);
+  animation: pageIn .22s ease;
 }
 
 .filtersRow {
@@ -38,7 +38,7 @@
 .filterSearch:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-bg);
+  box-shadow: 0 0 0 2px var(--accent-light);
 }
 
 .statsRow {
@@ -89,7 +89,7 @@
 
 .td {
   padding: 14px 16px;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 
@@ -108,7 +108,7 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  background: var(--accent-bg);
+  background: var(--accent-light);
   color: var(--accent-dark);
   border-radius: var(--r-full);
   font-size: 11px;

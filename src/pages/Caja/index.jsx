@@ -3,6 +3,7 @@ import { useHotel } from '../../context/HotelContext';
 import GenericCRUD from '../../components/GenericCRUD.jsx';
 import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 
+
 export default function Caja() {
   const { movimientos = [], addMovimiento, updateMovimiento, deleteMovimiento } = useHotel();
 
@@ -11,7 +12,7 @@ export default function Caja() {
     { key: 'tipo', label: 'Tipo', render: i => (
       <span style={{
         padding: '2px 8px',
-        borderRadius: 'var(--r-full)',
+        borderRadius: 'var(--r-sm)',
         fontSize: 11,
         fontWeight: 600,
         color: i.tipo === 'ingreso' ? 'var(--green)' : 'var(--red)',
