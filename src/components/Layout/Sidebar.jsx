@@ -1,16 +1,31 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BedDouble, Tag, MapPin, DollarSign, Hotel } from 'lucide-react';
-
-const NAV = [
-  { to:'/',             icon:LayoutDashboard, label:'Recepción',    sub:'Vista general' },
-  { to:'/caja',         icon:DollarSign,      label:'Caja',         sub:'Ingresos/Egresos' },
-  { to:'/habitaciones', icon:BedDouble,       label:'Habitaciones', sub:'Gestión de cuartos' },
-  { to:'/categorias',   icon:Tag,             label:'Categorías',   sub:'Tipos de habitación' },
-  { to:'/ubicaciones',  icon:MapPin,          label:'Pisos',       sub:'Ubicaciones' },
-  { to:'/tarifas',      icon:DollarSign,      label:'Tarifas',     sub:'Precios' },
-];
+import { LayoutDashboard, BedDouble, Tag, MapPin, DollarSign, Hotel, Users, Building2, Settings } from 'lucide-react';
+import { useHotel } from '../../context/HotelContext';
 
 export default function Sidebar() {
+  const { userRole } = useHotel();
+
+  const NAV_ADMIN = [
+    { to:'/',             icon:LayoutDashboard, label:'Recepción',    sub:'Vista general' },
+    { to:'/caja',         icon:DollarSign,      label:'Caja',         sub:'Ingresos/Egresos' },
+    { to:'/habitaciones', icon:BedDouble,       label:'Habitaciones', sub:'Gestión de cuartos' },
+    { to:'/categorias',   icon:Tag,             label:'Categorías',   sub:'Tipos de habitación' },
+    { to:'/ubicaciones',  icon:MapPin,          label:'Pisos',       sub:'Ubicaciones' },
+    { to:'/tarifas',      icon:DollarSign,      label:'Tarifas',     sub:'Precios' },
+    { to:'/empresa',      icon:Building2,       label:'Empresa',     sub:'Información general' },
+    { to:'/clientes',     icon:Users,           label:'Clientes',    sub:'Lista completa' },
+    { to:'/tipos-alquiler', icon:Settings,     label:'Tipos Alquiler', sub:'Configuración' },
+    { to:'/tipos-habitacion', icon:BedDouble, label:'Tipos Habitación', sub:'Configuración' },
+  ];
+
+  const NAV_RECEPCION = [
+    { to:'/',             icon:LayoutDashboard, label:'Recepción',    sub:'Vista general' },
+    { to:'/caja',         icon:DollarSign,      label:'Caja',         sub:'Ingresos/Egresos' },
+    { to:'/habitaciones', icon:BedDouble,       label:'Habitaciones', sub:'Estado cuartos' },
+    { to:'/clientes',     icon:Users,           label:'Clientes',    sub:'Lista disponible' },
+  ];
+
+  const NAV = userRole === 'admin' ? NAV_ADMIN : NAV_RECEPCION;
   return (
     <aside style={s.root}>
       {/* Logotipo */}

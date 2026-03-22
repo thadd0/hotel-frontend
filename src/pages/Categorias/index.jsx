@@ -3,8 +3,9 @@ import GenericCRUD from '../../components/GenericCRUD.jsx';
 import { Tag } from 'lucide-react';
 
 export default function Categorias() {
-  const { categorias, addCategoria, updateCategoria, deleteCategoria } = useHotel();
+  const { categorias, addCategoria, updateCategoria, deleteCategoria, userRole } = useHotel();
   const sucursalNombre = 'Todos los Pisos';
+  const readOnly = userRole === 'recepcion';
 
   const columns = [
     { key:'nombre', label:'Nombre de categoría' },
@@ -29,6 +30,7 @@ export default function Categorias() {
       emptyMsg="No hay categorías registradas"
       emptyIcon={<Tag size={38}/>}
       modalTitle="Categoría"
+      readOnly={readOnly}
       // no sucursalActiva
     />
   );

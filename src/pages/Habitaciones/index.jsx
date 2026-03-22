@@ -12,7 +12,8 @@ const PER_PAGE = 8;
 const empty = { numero:'', categoriaId:'', ubicacionId:'', tarifaIds:[], estado:'DISPONIBLE', visible:true };
 
 export default function Habitaciones() {
-  const { habitaciones, categorias, ubicaciones, addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado } = useHotel();
+  const { habitaciones, categorias, ubicaciones, addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado, userRole } = useHotel();
+  const readOnly = userRole === 'recepcion';
   const [modalOpen, setModalOpen] = useState(false);
   const [editId,    setEditId]    = useState(null);
   const [form,      setForm]      = useState(empty);
@@ -78,7 +79,7 @@ export default function Habitaciones() {
           <RSelect value={fCat}     onValueChange={v=>{setFCat(v);    setPage(1);}} placeholder="Categoría" options={categorias.map(c=>({value:String(c.id),label:c.nombre}))} />
           <SearchInput value={busqueda} onChange={v=>{setBusqueda(v); setPage(1);}} placeholder="Buscar..." />
           <div style={{ marginLeft:'auto' }}>
-            <Btn icon={<Plus size={14}/>} onClick={openNew}>Nueva habitación</Btn>
+            {!readOnly && <Btn icon={<Plus size={14}/>} onClick={openNew}>Nueva habitación</Btn>}
           </div>
         </div>
       </Card>
@@ -120,8 +121,12 @@ export default function Habitaciones() {
                   </td>
                   <td style={{ ...tdStyle, width:80 }}>
                     <div style={{ display:'flex', gap:5 }}>
-                      <EditBtn   onClick={()=>openEdit(hab)} />
-                      <DeleteBtn onClick={()=>setConfirmId(hab.id)} />
+                      {!readOnly && (
+                        <>
+                          <EditBtn   onClick={()=>openEdit(hab)} />
+                          <DeleteBtn onClick={()=>setConfirmId(hab.id)} />
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -134,44 +139,48 @@ export default function Habitaciones() {
         </div>
       </Card>
 
-      {/* MODAL */}
-      <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId ? 'Editar habitación' : 'Nueva habitación'} width={520}>
-        <Field label="Número" error={errors.numero} required>
-          <input style={inputStyle} value={form.numero} onChange={e=>set('numero',e.target.value)} placeholder="Ej: 101" onFocus={inputFocus} onBlur={inputBlur} />
-        </Field>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-          <Field label="Categoría" error={errors.categoriaId} required>
-            <RSelect value={form.categoriaId} onValueChange={v=>set('categoriaId',v)} placeholder="Seleccionar" options={categorias.map(c=>({value:String(c.id),label:c.nombre}))} triggerStyle={{ width:'100%', minWidth:'unset' }} />
-            {errors.categoriaId && <p style={{ color:'var(--red)', fontSize:11, marginTop:4 }}>{errors.categoriaId}</p>}
-          </Field>
-          <Field label="Ubicación" error={errors.ubicacionId} required>
-            <RSelect value={form.ubicacionId} onValueChange={v=>set('ubicacionId',v)} placeholder="Seleccionar" options={ubicaciones.map(u=>({value:String(u.id),label:u.nombre}))} triggerStyle={{ width:'100%', minWidth:'unset' }} />
-            {errors.ubicacionId && <p style={{ color:'var(--red)', fontSize:11, marginTop:4 }}>{errors.ubicacionId}</p>}
-          </Field>
-        </div>
-        {/* Tarifas section removed per request */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-          <Field label="Estado">
-            <RSelect value={form.estado} onValueChange={v=>set('estado',v)} options={ESTADO_KEYS.map(k=>({value:k,label:k}))} triggerStyle={{ width:'100%', minWidth:'unset' }} />
-          </Field>
-          <Field label="Visible">
-            <div style={{ paddingTop:6 }}>
-              <SwitchField checked={form.visible} onCheckedChange={v=>set('visible',v)} label={form.visible?'Sí':'No'} />
+      {readOnly ? null : (
+        <>
+          {/* MODAL */}
+          <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId ? 'Editar habitación' : 'Nueva habitación'} width={520}>
+            <Field label="Número" error={errors.numero} required>
+              <input style={inputStyle} value={form.numero} onChange={e=>set('numero',e.target.value)} placeholder="Ej: 101" onFocus={inputFocus} onBlur={inputBlur} />
+            </Field>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Categoría" error={errors.categoriaId} required>
+                <RSelect value={form.categoriaId} onValueChange={v=>set('categoriaId',v)} placeholder="Seleccionar" options={categorias.map(c=>({value:String(c.id),label:c.nombre}))} triggerStyle={{ width:'100%', minWidth:'unset' }} />
+                {errors.categoriaId && <p style={{ color:'var(--red)', fontSize:11, marginTop:4 }}>{errors.categoriaId}</p>}
+              </Field>
+              <Field label="Ubicación" error={errors.ubicacionId} required>
+                <RSelect value={form.ubicacionId} onValueChange={v=>set('ubicacionId',v)} placeholder="Seleccionar" options={ubicaciones.map(u=>({value:String(u.id),label:u.nombre}))} triggerStyle={{ width:'100%', minWidth:'unset' }} />
+                {errors.ubicacionId && <p style={{ color:'var(--red)', fontSize:11, marginTop:4 }}>{errors.ubicacionId}</p>}
+              </Field>
             </div>
-          </Field>
-        </div>
-        <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' }}>
-          <Btn variant="ghost" onClick={()=>setModalOpen(false)}>Cancelar</Btn>
-          <Btn onClick={handleSubmit}>{editId?'Guardar cambios':'Crear habitación'}</Btn>
-        </div>
-      </Modal>
+            {/* Tarifas section removed per request */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Estado">
+                <RSelect value={form.estado} onValueChange={v=>set('estado',v)} options={ESTADO_KEYS.map(k=>({value:k,label:k}))} triggerStyle={{ width:'100%', minWidth:'unset' }} />
+              </Field>
+              <Field label="Visible">
+                <div style={{ paddingTop:6 }}>
+                  <SwitchField checked={form.visible} onCheckedChange={v=>set('visible',v)} label={form.visible?'Sí':'No'} />
+                </div>
+              </Field>
+            </div>
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' }}>
+              <Btn variant="ghost" onClick={()=>setModalOpen(false)}>Cancelar</Btn>
+              <Btn onClick={handleSubmit}>{editId?'Guardar cambios':'Crear habitación'}</Btn>
+            </div>
+          </Modal>
 
-      <ConfirmDialog
-        open={!!confirmId}
-        onOpenChange={open=>!open&&setConfirmId(null)}
-        onConfirm={()=>{ deleteHabitacion(confirmId); setConfirmId(null); }}
-        message="¿Eliminar esta habitación? Esta acción no se puede deshacer."
-      />
+          <ConfirmDialog
+            open={!!confirmId}
+            onOpenChange={open=>!open&&setConfirmId(null)}
+            onConfirm={()=>{ deleteHabitacion(confirmId); setConfirmId(null); }}
+            message="¿Eliminar esta habitación? Esta acción no se puede deshacer."
+          />
+        </>
+      )}
     </div>
   );
 }

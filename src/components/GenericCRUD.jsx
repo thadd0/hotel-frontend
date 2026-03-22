@@ -12,6 +12,7 @@ export default function GenericCRUD({
   items, onAdd, onUpdate, onDelete,
   columns, formFields, emptyMsg, emptyIcon,
   modalTitle = 'Registro',
+  readOnly = false,  // Nuevo: oculta botones para recepcionista
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId,    setEditId]    = useState(null);
@@ -52,9 +53,11 @@ export default function GenericCRUD({
 
   return (
     <div className="page-anim">
-      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:18 }}>
-        <Btn icon={<Plus size={14}/>} onClick={openNew}>+ Nuevo</Btn>
-      </div>
+      {!readOnly && (
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:18 }}>
+          <Btn icon={<Plus size={14}/>} onClick={openNew}>+ Nuevo</Btn>
+        </div>
+      )}
 
       <Card>
         {paged.length === 0 ? (
@@ -72,11 +75,13 @@ export default function GenericCRUD({
                     {col.render ? col.render(item) : (item[col.key] ?? '—')}
                   </td>
                 ))}
-                <td style={{ ...tdStyle, width:80 }}>
-                  <div style={{ display:'flex', gap:5 }}>
-                    <EditBtn   onClick={()=>openEdit(item)} />
-                    <DeleteBtn onClick={()=>setConfirmId(item.id)} />
-                  </div>
+                <td style={{ ...tdStyle, width: readOnly ? 0 : 80, padding: readOnly ? 0 : 'inherit' }}>
+                  {!readOnly && (
+                    <div style={{ display:'flex', gap:5 }}>
+                      <EditBtn   onClick={()=>openEdit(item)} />
+                      <DeleteBtn onClick={()=>setConfirmId(item.id)} />
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -87,53 +92,56 @@ export default function GenericCRUD({
         </div>
       </Card>
 
-      <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId ? `Editar ${modalTitle}` : `Nuevo/a ${modalTitle}`} width={460}>
-        {formFields.map(f => (
-          <Field key={f.key} label={f.label} error={errors[f.key]} required={f.required}>
-            {f.type === 'select' ? (
-              <select
-                style={inputStyle}
-                value={form[f.key] ?? ''}
-                onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
-                onFocus={inputFocus}
-                onBlur={inputBlur}
-              >
-                <option value="">{f.placeholder || 'Selecciona una opción'}</option>
-                {f.options?.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                style={inputStyle}
-                type={f.type ?? 'text'}
-                value={form[f.key] ?? ''}
-                onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
-                placeholder={f.placeholder}
-                onFocus={inputFocus}
-                onBlur={inputBlur}
-              />
-            )}
+{readOnly ? null : (
+        <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId ? `Editar ${modalTitle}` : `Nuevo/a ${modalTitle}`} width={460}>
+          {formFields.map(f => (
+            <Field key={f.key} label={f.label} error={errors[f.key]} required={f.required}>
+              {f.type === 'select' ? (
+                <select
+                  style={inputStyle}
+                  value={form[f.key] ?? ''}
+                  onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
+                  onFocus={inputFocus}
+                  onBlur={inputBlur}
+                >
+                  <option value="">{f.placeholder || 'Selecciona una opción'}</option>
+                  {f.options?.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  style={inputStyle}
+                  type={f.type ?? 'text'}
+                  value={form[f.key] ?? ''}
+                  onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
+                  placeholder={f.placeholder}
+                  onFocus={inputFocus}
+                  onBlur={inputBlur}
+                />
+              )}
+            </Field>
+          ))}
+          <Field label="Visible">
+            <SwitchField
+              checked={!!form.visible}
+              onCheckedChange={v=>setForm(p=>({...p,visible:v}))}
+              label={form.visible ? 'Visible' : 'Oculto'}
+            />
           </Field>
-        ))}
-        <Field label="Visible">
-          <SwitchField
-            checked={!!form.visible}
-            onCheckedChange={v=>setForm(p=>({...p,visible:v}))}
-            label={form.visible ? 'Visible' : 'Oculto'}
-          />
-        </Field>
-        <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' }}>
-          <Btn variant="ghost" onClick={()=>setModalOpen(false)}>Cancelar</Btn>
-          <Btn onClick={handleSubmit}>{editId ? 'Guardar cambios' : 'Crear'}</Btn>
-        </div>
-      </Modal>
-
-      <ConfirmDialog
-        open={!!confirmId}
-        onOpenChange={open=>!open&&setConfirmId(null)}
-        onConfirm={()=>{ onDelete(confirmId); setConfirmId(null); }}
-      />
+          <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' }}>
+            <Btn variant="ghost" onClick={()=>setModalOpen(false)}>Cancelar</Btn>
+            <Btn onClick={handleSubmit}>{editId ? 'Guardar cambios' : 'Crear'}</Btn>
+          </div>
+        </Modal>
+      )}
+      {readOnly ? null : (
+        <ConfirmDialog
+          open={!!confirmId}
+          onOpenChange={open=>!open&&setConfirmId(null)}
+          onConfirm={()=>{ onDelete(confirmId); setConfirmId(null); }}
+        />
+      )}
     </div>
   );
 }

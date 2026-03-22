@@ -1,8 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { useHotel } from '../../context/HotelContext';
-import { Btn } from '../UI/index.jsx';
-import * as Select from '@radix-ui/react-select';
-import { ChevronDown, Check, Building2, Bell, LogOut } from 'lucide-react';
+import { Btn, RSelect } from '../UI/index.jsx';
+import { ChevronDown, Check, Bell, LogOut, User } from 'lucide-react';
 
 const TITLES = {
   '/':             { title:'Vista General',       sub:'Recepción y estado de habitaciones' },
@@ -15,7 +14,7 @@ const TITLES = {
 
 export default function Header() {
   const { pathname } = useLocation();
-  const { sucursales, sucursalActiva, setSucursalActiva, logout, userRole } = useHotel();
+  const { sucursales, sucursalActiva, setSucursalActiva, logout, userRole, toggleRole } = useHotel();
   const info = TITLES[pathname] ?? { title:'Hotel Admin', sub:'' };
 
   return (
@@ -28,22 +27,25 @@ export default function Header() {
       </div>
 
       <div style={s.right}>
-        {/* Role Badge */}
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '4px 10px',
-          background: userRole === 'admin' ? 'var(--purple-bg)' : 'var(--green-bg)',
-          borderRadius: 'var(--r-md)',
-          border: `1px solid ${userRole === 'admin' ? 'var(--purple-border)' : 'var(--green-border)'}`,
-          fontSize: 12,
-          fontWeight: 700,
-          color: userRole === 'admin' ? 'var(--purple)' : 'var(--green)',
-        }}>
-          <span style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {userRole === 'admin' ? 'Administración' : 'Recepción'}
-          </span>
+        {/* Role Toggle */}
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <RSelect
+            value={userRole}
+            onValueChange={toggleRole}
+            placeholder="Rol"
+            options={[
+              { value: 'admin', label: 'Administrador' },
+              { value: 'recepcion', label: 'Recepcionista' }
+            ]}
+            triggerStyle={{
+              padding: '4px 8px',
+              fontSize: 12,
+              minWidth: 120,
+              borderRadius: 'var(--r-sm)',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+            }}
+          />
         </div>
 
         {/* Campana */}

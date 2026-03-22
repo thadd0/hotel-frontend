@@ -12,8 +12,11 @@ export function HotelProvider({ children }) {
   const [sucursales,   setSucursales]   = useState([{ id: 0, nombre: 'Todos los Pisos' }]);
   const [categorias,   setCategorias]   = useState(initialData.categorias);
   const [ubicaciones,  setUbicaciones]  = useState(initialData.ubicaciones);
+const [empresa, setEmpresa] = useState(initialData.empresa);
+  const [tiposAlquiler, setTiposAlquiler] = useState(initialData.tiposAlquiler);
+  const [tiposHabitacion, setTiposHabitacion] = useState(initialData.tiposHabitacion);
   const [tarifas,      setTarifas]      = useState(initialData.tarifas);
-const [habitaciones, setHabitaciones] = useState(initialData.habitaciones); // visual mock data
+  const [habitaciones, setHabitaciones] = useState(initialData.habitaciones); // visual mock data
 const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
   const [clientes, setClientes] = useState(() => {
     try {
@@ -26,9 +29,21 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState('admin'); // 'admin' | 'recepcion'
+  const [token, setToken] = useState(localStorage.getItem('hotelToken') || null);
 
-  const login = useCallback(() => {
+  const login = useCallback((newToken) => {
     setIsLoggedIn(true);
+    if (newToken) {
+      setToken(newToken);
+      localStorage.setItem('hotelToken', newToken);
+    }
+  }, []);
+
+  const toggleRole = useCallback((role) => {
+    if (role === 'admin' || role === 'recepcion') {
+      setUserRole(role);
+      localStorage.setItem('userRole', role);
+    }
   }, []);
 
   const logout = useCallback(() => {
@@ -288,9 +303,86 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
 // Disabled API loadAll - force use initialData mocks
 // useEffect(() => { ... }, []);
 
+  // CRUD nuevos tipos
+  const addTipoAlquiler = useCallback(async (d) => {
+    try {
+      // Future API postTipoAlquiler
+      setTiposAlquiler(p => [...p, { ...d, id: nextId(p) }]);
+    } catch (error) {
+      console.warn('Failed to add tipo alquiler:', error);
+      setTiposAlquiler(p => [...p, { ...d, id: nextId(p) }]);
+    }
+  }, []);
+
+  const updateTipoAlquiler = useCallback(async (id, d) => {
+    try {
+      // Future API
+      setTiposAlquiler(p => p.map(t => t.id === id ? { ...t, ...d } : t));
+    } catch (error) {
+      console.warn('Failed to update tipo alquiler:', error);
+      setTiposAlquiler(p => p.map(t => t.id === id ? { ...t, ...d } : t));
+    }
+  }, []);
+
+  const deleteTipoAlquiler = useCallback(async (id) => {
+    try {
+      // Future API
+      setTiposAlquiler(p => p.filter(t => t.id !== id));
+    } catch (error) {
+      console.warn('Failed to delete tipo alquiler:', error);
+      setTiposAlquiler(p => p.filter(t => t.id !== id));
+    }
+  }, []);
+
+  const addTipoHabitacion = useCallback(async (d) => {
+    try {
+      // Future API
+      setTiposHabitacion(p => [...p, { ...d, id: nextId(p) }]);
+    } catch (error) {
+      console.warn('Failed to add tipo habitacion:', error);
+      setTiposHabitacion(p => [...p, { ...d, id: nextId(p) }]);
+    }
+  }, []);
+
+  const updateTipoHabitacion = useCallback(async (id, d) => {
+    try {
+      // Future API
+      setTiposHabitacion(p => p.map(t => t.id === id ? { ...t, ...d } : t));
+    } catch (error) {
+      console.warn('Failed to update tipo habitacion:', error);
+      setTiposHabitacion(p => p.map(t => t.id === id ? { ...t, ...d } : t));
+    }
+  }, []);
+
+  const deleteTipoHabitacion = useCallback(async (id) => {
+    try {
+      // Future API
+      setTiposHabitacion(p => p.filter(t => t.id !== id));
+    } catch (error) {
+      console.warn('Failed to delete tipo habitacion:', error);
+      setTiposHabitacion(p => p.filter(t => t.id !== id));
+    }
+  }, []);
+
+  // Empresa CRUD (admin only, simple)
+  const updateEmpresa = useCallback(async (d) => {
+    try {
+      // Future API PATCH /empresa
+      setEmpresa({ ...empresa, ...d });
+    } catch (error) {
+      console.warn('Failed to update empresa:', error);
+      setEmpresa({ ...empresa, ...d });
+    }
+  }, [empresa]);
+
   return (
     <HotelContext.Provider value={{
       // No sucursales
+
+      empresa, updateEmpresa,
+      
+      tiposAlquiler, addTipoAlquiler, updateTipoAlquiler, deleteTipoAlquiler,
+      tiposHabitacion, addTipoHabitacion, updateTipoHabitacion, deleteTipoHabitacion,
 
       categorias:    byBranch(categorias),
       allCategorias: categorias,
@@ -311,11 +403,12 @@ const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
       clientes, allClientes: clientes,
       addCliente, updateCliente, deleteCliente,
 
-      isLoggedIn, userRole, setUserRole, login, logout,
+      isLoggedIn, userRole, setUserRole, token, toggleRole, login, logout,
     }}>
       {children}
     </HotelContext.Provider>
   );
+
 }
 
 export const useHotel = () => {

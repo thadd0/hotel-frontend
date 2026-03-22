@@ -10,6 +10,10 @@ import Ubicaciones from './pages/Ubicaciones';
 import Sucursales from './pages/Sucursales';
 import Tarifas from './pages/Tarifas';
 import Caja from './pages/Caja';
+import Empresa from './pages/Empresa';
+import Clientes from './pages/Clientes';
+import TiposAlquiler from './pages/TiposAlquiler';
+import TiposHabitacion from './pages/TiposHabitacion';
 
 function AppContent() {
   const { isLoggedIn } = useHotel();
@@ -28,6 +32,10 @@ function AppContent() {
           <Route path="ubicaciones" element={<Ubicaciones />} />
           <Route path="tarifas" element={<Tarifas />} />
           <Route path="caja" element={<Caja />} />
+          <Route path="empresa" element={<Empresa />} />
+          <Route path="clientes" element={<Clientes />} />
+          <Route path="tipos-alquiler" element={<TiposAlquiler />} />
+          <Route path="tipos-habitacion" element={<TiposHabitacion />} />
         </Route>
       </Routes>
     </BrowserRouter>
