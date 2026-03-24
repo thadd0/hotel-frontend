@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, EmptyState, Pagination, Modal, Field, useToast } from '../../components/UI/index.jsx';
-import { ClipboardList, LogOut, ShoppingCart, Plus, Trash2, Pencil } from 'lucide-react';
+import { ClipboardList, LogOut, ShoppingCart, Plus, Trash2, Pencil, Check } from 'lucide-react';
 import { getCuentasByAlquiler, postCuenta, putCuenta, deleteCuenta } from '../../api/consumos';
 
 const PER_PAGE = 12;
@@ -13,7 +13,7 @@ const inputStyle = {
 };
 
 export default function Alquileres() {
-  const { alquileres, checkOut, userRole } = useHotel();
+  const { alquileres, checkOut, refreshAlquiler, userRole } = useHotel();
   const isAdmin = userRole === 'admin';
   const addToast = useToast();
 
@@ -21,6 +21,10 @@ export default function Alquileres() {
   const [page, setPage] = useState(1);
   const [checkOutModal, setCheckOutModal] = useState(null); // alquiler object or null
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
+
+  // Checkout detail state
+  const [checkoutCuentaItems, setCheckoutCuentaItems] = useState([]);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   // Cuenta (consumos) state
   const [cuentaModal, setCuentaModal] = useState(null); // alquiler object or null
@@ -37,11 +41,29 @@ export default function Alquileres() {
 
   const handleTabChange = (t) => { setTab(t); setPage(1); };
 
-  const handleCheckOut = () => {
+  const openCheckout = async (a) => {
+    setCheckOutModal(a);
+    setMetodoPago('EFECTIVO');
+    setCheckoutCuentaItems([]);
+    setCheckoutLoading(true);
+    try {
+      const items = await getCuentasByAlquiler(a.id);
+      setCheckoutCuentaItems(items.filter(c => c.estado === 'PENDIENTE'));
+    } catch { /* show empty list */ } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const handleCheckOut = async () => {
     if (!checkOutModal) return;
-    checkOut(checkOutModal.id, metodoPago);
-    addToast('Check-out realizado con éxito', 'success');
-    setCheckOutModal(null);
+    try {
+      await checkOut(checkOutModal.id, metodoPago);
+      addToast('Check-out realizado con éxito', 'success');
+      setCheckOutModal(null);
+      setCheckoutCuentaItems([]);
+    } catch {
+      addToast('Error al realizar check-out', 'error');
+    }
   };
 
   // Open cuenta modal — try API, fallback to mock
@@ -68,6 +90,7 @@ export default function Alquileres() {
       try {
         const updated = await putCuenta(cuentaModal.id, editConsumoId, payload);
         setCuentaItems(prev => prev.map(c => c.id === editConsumoId ? updated : c));
+        refreshAlquiler(cuentaModal.id);
       } catch {
         setCuentaItems(prev => prev.map(c => c.id === editConsumoId ? { ...c, ...payload, subTotal: precio * Number(cantidad) } : c));
       }
@@ -78,6 +101,8 @@ export default function Alquileres() {
       try {
         const saved = await postCuenta(cuentaModal.id, payload);
         setCuentaItems(prev => [...prev, saved]);
+        refreshAlquiler(cuentaModal.id);
+        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: parseFloat(prev.pagoPendiente) + saved.subTotal } : prev);
       } catch {
         const item = {
           id: Date.now(),
@@ -86,6 +111,7 @@ export default function Alquileres() {
           alquilerId: cuentaModal.id,
         };
         setCuentaItems(prev => [...prev, item]);
+        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: parseFloat(prev.pagoPendiente) + item.subTotal } : prev);
       }
       addToast('Consumo agregado', 'success');
     }
@@ -93,10 +119,15 @@ export default function Alquileres() {
   };
 
   const removeConsumo = async (id) => {
+    const item = cuentaItems.find(c => c.id === id);
     try {
       await deleteCuenta(cuentaModal.id, id);
     } catch { /* fallback: just remove locally */ }
     setCuentaItems(prev => prev.filter(c => c.id !== id));
+    if (item) {
+      refreshAlquiler(cuentaModal.id);
+      setCuentaModal(prev => prev ? { ...prev, pagoPendiente: Math.max(0, parseFloat(prev.pagoPendiente) - item.subTotal) } : prev);
+    }
     addToast('Consumo eliminado', 'info');
   };
 
@@ -111,6 +142,21 @@ export default function Alquileres() {
   };
 
   const cuentaTotal = cuentaItems.reduce((sum, c) => sum + c.subTotal, 0);
+  const markConsumoAsPaid = async (c) => {
+    try {
+      const updated = await putCuenta(cuentaModal.id, c.id, {
+        descripcion: c.descripcion, precioUnit: c.precioUnit, cantidad: c.cantidad, estado: 'PAGADO',
+      });
+      setCuentaItems(prev => prev.map(x => x.id === c.id ? updated : x));
+      refreshAlquiler(cuentaModal.id);
+      setCuentaModal(prev => prev ? { ...prev, pagoPendiente: Math.max(0, parseFloat(prev.pagoPendiente) - c.subTotal) } : prev);
+      addToast('Consumo marcado como pagado', 'success');
+    } catch {
+      setCuentaItems(prev => prev.map(x => x.id === c.id ? { ...x, estado: 'PAGADO' } : x));
+      addToast('Consumo marcado como pagado', 'success');
+    }
+  };
+
 
   return (
     <div className="page-anim">
@@ -167,20 +213,20 @@ export default function Alquileres() {
                   </span>
                 </td>
                 <td style={td}>
-                  {a.estadoAlquiler === 'ACTIVO' && (
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <Btn variant="ghost" style={{ fontSize: 12, padding: '4px 10px' }}
-                        onClick={() => openCuenta(a)}
-                        icon={<ShoppingCart size={13} />}>
-                        Cuenta
-                      </Btn>
-                      <Btn variant="ghost" style={{ fontSize: 12, padding: '4px 10px' }}
-                        onClick={() => { setCheckOutModal(a); setMetodoPago('EFECTIVO'); }}
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Btn variant="ghost" style={{ fontSize: 12, padding: '4px 10px' }}
+                      onClick={() => openCuenta(a)}
+                      icon={<ShoppingCart size={13} />}>
+                      Cuenta
+                    </Btn>
+                    {a.estadoAlquiler === 'ACTIVO' && (
+                      <Btn style={{ fontSize: 12, padding: '4px 10px', background: 'var(--red, #e53935)', color: '#fff', border: 'none' }}
+                        onClick={() => openCheckout(a)}
                         icon={<LogOut size={13} />}>
                         Check-out
                       </Btn>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -192,16 +238,37 @@ export default function Alquileres() {
       )}
 
       {/* Check-out modal — calls POST /{id}/check-out?metodoPago=X */}
-      <Modal open={!!checkOutModal} onOpenChange={(open) => !open && setCheckOutModal(null)} title="Confirmar Check-out" width={400}>
+      <Modal open={!!checkOutModal} onOpenChange={(open) => !open && setCheckOutModal(null)} title="Confirmar Check-out" width={480}>
         {checkOutModal && (
           <>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 14, marginBottom: 8 }}>
-                <strong>Habitación:</strong> {checkOutModal.numeroHabitacion} — <strong>{checkOutModal.nombreCliente}</strong>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+              Hab. {checkOutModal.numeroHabitacion} — {checkOutModal.nombreCliente}
+            </div>
+            {/* Bill breakdown */}
+            <div style={{ background: 'var(--surface-2, #f5f5f5)', borderRadius: 'var(--r-md, 8px)', padding: '12px 16px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                <span>Base habitación</span>
+                <span>S/ {parseFloat(checkOutModal.subTotal).toFixed(2)}</span>
               </div>
-              <div style={{ fontSize: 14, marginBottom: 4 }}>
-                <strong>Pendiente:</strong>{' '}
-                <span style={{ color: 'var(--red, #e53935)', fontWeight: 700 }}>
+              {checkoutLoading && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>Cargando consumos...</div>
+              )}
+              {!checkoutLoading && checkoutCuentaItems.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', margin: '8px 0 4px' }}>
+                    Consumos pendientes
+                  </div>
+                  {checkoutCuentaItems.map(c => (
+                    <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', paddingLeft: 8, marginBottom: 2 }}>
+                      <span>{c.descripcion} × {c.cantidad}</span>
+                      <span>S/ {c.subTotal.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15 }}>
+                <span>Total a cobrar</span>
+                <span style={{ color: parseFloat(checkOutModal.pagoPendiente) > 0 ? 'var(--red, #e53935)' : 'var(--green, #43a047)' }}>
                   S/ {parseFloat(checkOutModal.pagoPendiente).toFixed(2)}
                 </span>
               </div>
@@ -215,7 +282,7 @@ export default function Alquileres() {
               </select>
             </Field>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <Btn variant="ghost" onClick={() => setCheckOutModal(null)}>Cancelar</Btn>
+              <Btn variant="ghost" onClick={() => { setCheckOutModal(null); setCheckoutCuentaItems([]); }}>Cancelar</Btn>
               <Btn onClick={handleCheckOut}>Confirmar Check-out</Btn>
             </div>
           </>
@@ -263,12 +330,17 @@ export default function Alquileres() {
                           </span>
                         </td>
                         <td style={tdCuenta}>
-                          {c.estado === 'PENDIENTE' && (
+                          {c.estado === 'PENDIENTE' && cuentaModal?.estadoAlquiler === 'ACTIVO' && (
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button onClick={() => startEditConsumo(c)} title="Editar" style={{
                                 border: 'none', background: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 2,
                               }}>
                                 <Pencil size={14} />
+                              </button>
+                              <button onClick={() => markConsumoAsPaid(c)} title="Marcar como pagado" style={{
+                                border: 'none', background: 'none', cursor: 'pointer', color: 'var(--green, #43a047)', padding: 2,
+                              }}>
+                                <Check size={14} />
                               </button>
                               <button onClick={() => removeConsumo(c.id)} title="Eliminar" style={{
                                 border: 'none', background: 'none', cursor: 'pointer', color: 'var(--red, #e53935)', padding: 2,

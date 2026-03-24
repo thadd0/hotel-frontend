@@ -3,7 +3,7 @@ import { initialData } from '../data/initialData';
 
 // API imports (calls will fail gracefully when backend is offline — fallback to local mock)
 import { getHabitaciones, postHabitacion, putHabitacion, deleteHabitacion as deleteHabitacionAPI, patchEstadoHabitacion } from '../api/habitaciones';
-import { getAlquileresActivos, getAlquileresHistorial, postCheckIn, postCheckOut } from '../api/alquileres';
+import { getAlquileresActivos, getAlquileresHistorial, getAlquiler, postCheckIn, postCheckOut } from '../api/alquileres';
 import { getTarifas, postTarifa, putTarifa, deleteTarifa as deleteTarifaAPI } from '../api/tarifas';
 import { getTiposHabitacion, postTipoHabitacion, putTipoHabitacion, deleteTipoHabitacion as deleteTipoHabitacionAPI } from '../api/categorias';
 import { getTiposAlquiler, postTipoAlquiler, putTipoAlquiler, deleteTipoAlquiler as deleteTipoAlquilerAPI } from '../api/tiposAlquiler';
@@ -254,6 +254,14 @@ export function HotelProvider({ children }) {
     ));
   }, []);
 
+  const refreshAlquiler = useCallback(async (id) => {
+    try {
+      const updated = await getAlquiler(id);
+      setAlquileres(p => p.map(a => a.id === id ? updated : a));
+      return updated;
+    } catch { /* silent */ }
+  }, []);
+
   // ── Derived: unique pisos from habitaciones ────────────────────────
   const pisos = [...new Set(habitaciones.map(h => h.piso))].sort((a, b) => a - b);
 
@@ -279,7 +287,7 @@ export function HotelProvider({ children }) {
       clientes, addCliente, updateCliente, deleteCliente,
 
       // Alquileres (check-in / check-out)
-      alquileres, checkIn, checkOut,
+      alquileres, checkIn, checkOut, refreshAlquiler,
 
       // Caja
       movimientosCaja,
