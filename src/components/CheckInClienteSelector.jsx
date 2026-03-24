@@ -12,18 +12,15 @@ export default function CheckInClienteSelector({ value, onClienteChange, cliente
 
   const tiposDoc = [
     { value: 'DNI', label: 'DNI' },
-    { value: 'RUC', label: 'RUC' },
+    { value: 'CE', label: 'CE' },
     { value: 'PASAPORTE', label: 'Pasaporte' },
-    { value: 'CARNET', label: 'Carnet' },
-    { value: 'OTRO', label: 'Otro' }
   ];
 
   const filteredClientes = useMemo(() => {
     if (!searchTerm.trim()) return [];
     return clientes.filter(cliente => 
       cliente.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cliente.num_documento?.includes(searchTerm) ||
-      cliente.documento?.includes(searchTerm)
+      cliente.numDocumento?.includes(searchTerm)
     );
   }, [clientes, searchTerm]);
 
@@ -31,10 +28,9 @@ export default function CheckInClienteSelector({ value, onClienteChange, cliente
     onClienteChange({
       id: cliente.id,
       nombre: cliente.nombre,
-      num_documento: cliente.num_documento,
+      numDocumento: cliente.numDocumento,
       tipoDocumento: cliente.tipoDocumento || 'DNI',
       telefono: cliente.telefono || '',
-      documento: cliente.num_documento
     });
     setShowNew(false);
   };
@@ -43,11 +39,10 @@ export default function CheckInClienteSelector({ value, onClienteChange, cliente
     if (!newCliente.nombre.trim()) return;
     onClienteChange({
       nuevo: true,
-      num_documento: searchTerm,
+      numDocumento: searchTerm,
       tipoDocumento: tipoDoc,
       nombre: newCliente.nombre,
       telefono: newCliente.telefono,
-      documento: searchTerm
     });
     setShowNew(false);
     setNewCliente({ nombre: '', telefono: '' });
@@ -85,7 +80,7 @@ export default function CheckInClienteSelector({ value, onClienteChange, cliente
             onClick={() => selectCliente(cliente)}>
               <div style={{ fontWeight: 600 }}>{cliente.nombre}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {cliente.num_documento}
+                {cliente.numDocumento}
               </div>
             </div>
           ))}

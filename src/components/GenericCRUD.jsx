@@ -3,6 +3,7 @@ import {
   Btn, Card, Table, tdStyle, EditBtn, DeleteBtn,
   Modal, ConfirmDialog, EmptyState, Pagination,
   Field, inputStyle, inputFocus, inputBlur, SwitchField,
+  useToast,
 } from './UI/index.jsx';
 import { Plus } from 'lucide-react';
 
@@ -12,7 +13,8 @@ export default function GenericCRUD({
   items, onAdd, onUpdate, onDelete,
   columns, formFields, emptyMsg, emptyIcon,
   modalTitle = 'Registro',
-  readOnly = false,  // Nuevo: oculta botones para recepcionista
+  readOnly = false,
+  showVisible = false,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId,    setEditId]    = useState(null);
@@ -20,9 +22,11 @@ export default function GenericCRUD({
   const [errors,    setErrors]    = useState({});
   const [confirmId, setConfirmId] = useState(null);
   const [page,      setPage]      = useState(1);
+  const addToast = useToast();
 
   const buildEmpty = () => {
-    const obj = { visible:true };
+    const obj = {};
+    if (showVisible) obj.visible = true;
     formFields.forEach(f => { if (!(f.key in obj)) obj[f.key] = ''; });
     return obj;
   };
@@ -30,7 +34,8 @@ export default function GenericCRUD({
   const openNew  = () => { setEditId(null); setForm(buildEmpty()); setErrors({}); setModalOpen(true); };
   const openEdit = (item) => {
     setEditId(item.id);
-    const obj = { visible:item.visible ?? true };
+    const obj = {};
+    if (showVisible) obj.visible = item.visible ?? true;
     formFields.forEach(f => { obj[f.key] = item[f.key] ?? ''; });
     setForm(obj); setErrors({}); setModalOpen(true);
   };
@@ -42,11 +47,16 @@ export default function GenericCRUD({
     return !Object.keys(e).length;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
     const payload = { ...form };
-    editId ? onUpdate(editId, payload) : onAdd(payload);
-    setModalOpen(false);
+    try {
+      editId ? await onUpdate(editId, payload) : await onAdd(payload);
+      addToast(editId ? 'Registro actualizado' : 'Registro creado', 'success');
+      setModalOpen(false);
+    } catch {
+      addToast('Error al guardar el registro', 'error');
+    }
   };
 
   const paged = items.slice((page-1)*PER_PAGE, page*PER_PAGE);
@@ -109,6 +119,16 @@ export default function GenericCRUD({
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
+              ) : f.type === 'textarea' ? (
+                <textarea
+                  style={{ ...inputStyle, minHeight: 80, resize: 'vertical' }}
+                  value={form[f.key] ?? ''}
+                  onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
+                  placeholder={f.placeholder}
+                  onFocus={inputFocus}
+                  onBlur={inputBlur}
+                  rows={f.rows ?? 3}
+                />
               ) : (
                 <input
                   style={inputStyle}
@@ -118,17 +138,22 @@ export default function GenericCRUD({
                   placeholder={f.placeholder}
                   onFocus={inputFocus}
                   onBlur={inputBlur}
+                  min={f.min}
+                  max={f.max}
+                  step={f.step}
                 />
               )}
             </Field>
           ))}
-          <Field label="Visible">
-            <SwitchField
-              checked={!!form.visible}
-              onCheckedChange={v=>setForm(p=>({...p,visible:v}))}
-              label={form.visible ? 'Visible' : 'Oculto'}
-            />
-          </Field>
+          {showVisible && (
+            <Field label="Visible">
+              <SwitchField
+                checked={!!form.visible}
+                onCheckedChange={v=>setForm(p=>({...p,visible:v}))}
+                label={form.visible ? 'Visible' : 'Oculto'}
+              />
+            </Field>
+          )}
           <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' }}>
             <Btn variant="ghost" onClick={()=>setModalOpen(false)}>Cancelar</Btn>
             <Btn onClick={handleSubmit}>{editId ? 'Guardar cambios' : 'Crear'}</Btn>
@@ -139,7 +164,7 @@ export default function GenericCRUD({
         <ConfirmDialog
           open={!!confirmId}
           onOpenChange={open=>!open&&setConfirmId(null)}
-          onConfirm={()=>{ onDelete(confirmId); setConfirmId(null); }}
+          onConfirm={async ()=>{ try { await onDelete(confirmId); addToast('Registro eliminado', 'info'); } catch { addToast('Error al eliminar', 'error'); } setConfirmId(null); }}
         />
       )}
     </div>

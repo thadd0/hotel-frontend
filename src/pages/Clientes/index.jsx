@@ -3,20 +3,25 @@ import GenericCRUD from '../../components/GenericCRUD.jsx';
 import { Users } from 'lucide-react';
 
 export default function Clientes() {
-  const { clientes, addCliente, updateCliente, deleteCliente, userRole } = useHotel();
+  const { clientes, addCliente, updateCliente, deleteCliente, empresas, userRole } = useHotel();
   
   const isReadOnly = userRole === 'recepcion';
 
+  const empresaOptions = empresas.map(e => ({ value: String(e.id), label: `${e.nombre} (${e.ruc})` }));
+
   const columns = [
     { key: 'nombre', label: 'Nombre Completo' },
-    { key: 'num_documento', label: 'DNI' },
+    { key: 'numDocumento', label: 'Documento' },
+    { key: 'tipoDocumento', label: 'Tipo Doc.', render: c => c.tipoDocumento?.nombre || '—' },
     { key: 'telefono', label: 'Teléfono', render: c => c.telefono || '—' },
+    { key: 'empresaNombre', label: 'Empresa', render: c => c.empresaNombre || '—' },
   ];
 
   const formFields = [
     { key: 'nombre', label: 'Nombre completo', required: true, placeholder: 'Juan Pérez López' },
-    { key: 'num_documento', label: 'Número de documento', required: true, placeholder: '12345678' },
+    { key: 'numDocumento', label: 'Número de documento', required: true, placeholder: '12345678' },
     { key: 'telefono', label: 'Teléfono', placeholder: '+51 987 654 321' },
+    { key: 'empresaId', label: 'Empresa (opcional)', type: 'select', placeholder: 'Sin empresa', options: empresaOptions },
   ];
 
   return (

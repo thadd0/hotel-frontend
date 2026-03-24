@@ -1,101 +1,138 @@
-export type Rol = {
+// ── Sub-DTOs (nested objects in responses) ──────────────────────────
+export type RolDTO = {
   id: number;
   nombre: 'ROLE_ADMINISTRADOR' | 'ROLE_RECEPCIONISTA';
   descripcion?: string;
 };
 
-export type TipoDocumento = {
+export type TipoDocumentoDTO = {
   id: number;
   nombre: 'DNI' | 'CE' | 'PASAPORTE';
 };
 
-export type TipoHabitacion = {
+export type TipoHabitacionDTO = {
   id: number;
-  nombre: string; // SIMPLE, DOBLE, MATRIMONIAL
+  nombre: string; // SIMPLE, DOBLE, etc.
 };
 
-export type TipoAlquiler = {
+export type TipoAlquilerDTO = {
   id: number;
   nombre: 'POR HORA' | 'POR DIA' | 'POR NOCHE';
 };
 
-export type Usuario = {
+// ── Main DTOs (match backend responses exactly) ─────────────────────
+export type UsuarioDTO = {
   id: number;
   nombre: string;
-  num_documento: string;
+  numDocumento: string;
   telefono?: string;
-  id_tipo_documento: number;
-  id_rol: number;
+  tipoDocumento: TipoDocumentoDTO;
+  rol: RolDTO;
 };
 
-export type Cliente = {
+export type ClienteDTO = {
   id: number;
   nombre: string;
-  num_documento: string;
+  numDocumento: string;
   telefono?: string;
-  id_tipo_documento: number;
+  tipoDocumento: TipoDocumentoDTO;
+  empresaId?: number;
+  empresaNombre?: string;
 };
 
-export type Habitacion = {
+export type HabitacionDTO = {
   id: number;
-  numero: string;
   piso: number;
+  numero: string;
   descripcion?: string;
   estado: 'DISPONIBLE' | 'OCUPADA' | 'LIMPIEZA' | 'MANTENIMIENTO';
-  id_tipo_habitacion: number;
+  tipoHabitacion: TipoHabitacionDTO;
 };
 
-export type Tarifa = {
+export type TarifaDTO = {
   id: number;
   precio: number;
-  id_tipo_habitacion: number;
-  id_tipo_alquiler: number;
+  tipoHabitacion: TipoHabitacionDTO;
+  tipoAlquiler: TipoAlquilerDTO;
 };
 
-export type Alquiler = {
+export type EmpresaDTO = {
   id: number;
-  fecha_ingreso: string;
-  fecha_prevista: string;
-  fecha_salida?: string;
-  precio_fijado: number;
-  cant_tiempo: number;
-  pago_pendiente: number;
-  estado: 'ACTIVO' | 'FINALIZADO';
-  id_cliente: number;
-  id_habitacion: number;
-  id_tarifa: number;
-  id_usuario: number;
+  nombre: string;
+  ruc: string;
+  telefono?: string;
 };
 
-export type CuentaAlquiler = {
+export type AlquilerResponseDTO = {
+  id: number;
+  numeroHabitacion: string;
+  nombreCliente: string;
+  subTotal: number;
+  pagoPendiente: number;
+  fechaIngreso: string;
+  fechaPrevista: string;
+  estadoAlquiler: 'ACTIVO' | 'FINALIZADO';
+  estadoHabitacion: 'DISPONIBLE' | 'OCUPADA' | 'LIMPIEZA' | 'MANTENIMIENTO';
+};
+
+export type CuentaAlquilerDTO = {
   id: number;
   descripcion: string;
-  precio_unit: number;
+  precioUnit: number;
   cantidad: number;
-  sub_total: number;
+  subTotal: number;
   estado: 'PENDIENTE' | 'PAGADO';
-  id_alquiler: number;
+  alquilerId: number;
 };
 
-export type MovimientoCaja = {
+export type MovimientoCajaResponseDTO = {
   id: number;
   tipo: 'INGRESO' | 'EGRESO';
   monto: number;
-  metodo_pago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
   concepto: string;
   fecha: string;
-  id_usuario: number;
-  id_alquiler?: number;
+  nombreUsuario: string;
+  numeroHabitacion?: string;
+  nombreCliente?: string;
 };
 
-// Legacy (to be deprecated)
-export type Sucursal = { id: number; nombre: string };
-export type Person = Cliente & { tipoDocumento: string; documento: string }; // Map to Cliente
-export type CheckInPayload = {
-  persons: Person[];
-  roomSelections: Array<{ id: number; tarifaId: number }>;
-  nights: number;
-  startDate: string;
-  endDate: string;
+export type ResumenCajaDTO = {
+  totalIngresos: number;
+  totalEgresos: number;
+  balance: number;
+  cantidadMovimientos: number;
+  movimientos: MovimientoCajaResponseDTO[];
+};
+
+// ── Request DTOs ────────────────────────────────────────────────────
+export type LoginRequest = {
+  numDocumento: string;
+  password: string;
+  rol?: string;
+};
+
+export type AuthResponse = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  numDocumento: string;
+  nombre: string;
+  rol: string;
+};
+
+export type CheckInRequestDTO = {
+  idCliente: number;
+  idHabitacion: number;
+  idTipoAlquiler: number;
+  cantTiempo: number;
+  adelanto?: number;
+  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+};
+
+export type GastoRequestDTO = {
+  concepto: string;
+  monto: number;
+  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
 };
 

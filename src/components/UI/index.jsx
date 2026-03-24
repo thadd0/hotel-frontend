@@ -5,7 +5,8 @@ import * as Switch       from '@radix-ui/react-switch';
 import * as Tooltip      from '@radix-ui/react-tooltip';
 import * as Separator    from '@radix-ui/react-separator';
 import * as Popover      from '@radix-ui/react-popover';
-import { X, ChevronDown, Check, AlertTriangle } from 'lucide-react';
+import { X, ChevronDown, Check, AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 /* ─── PROVEEDOR DE INFORMACIÓN SOBRE HERRAMIENTAS (envolver App) ─────────────────── */
 export function TooltipProvider({ children }) {
@@ -72,7 +73,7 @@ export function Modal({ open, onOpenChange, title, children, description = 'Oper
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content" style={{ maxWidth: width }}>
+        <Dialog.Content className="dialog-content" style={{ maxWidth: width }} aria-describedby={undefined}>
           <div style={{
             background:'var(--surface)', borderRadius:'var(--r-xl)',
             boxShadow:'var(--shadow-lg)', overflow:'hidden',
@@ -408,5 +409,93 @@ export function SearchInput({ value, onChange, placeholder='Buscar...' }) {
   );
 }
 
-// Export Popover components
-export { Popover };
+// Export Popover: raw Radix namespace + simple wrapper
+function PopoverMenu({ trigger, children }) {
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>{trigger}</Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          sideOffset={6}
+          align="start"
+          style={{
+            background:'var(--surface)', border:'1px solid var(--border)',
+            borderRadius:'var(--r-md)', padding:6, boxShadow:'var(--shadow-md)',
+            zIndex:600, minWidth:140,
+          }}
+        >
+          {children}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+export { PopoverMenu, Popover };
+
+/* ─── TOAST SYSTEM ──────────────────────────────────── */
+const TOAST_ICONS = {
+  success: <CheckCircle size={16} />,
+  error:   <XCircle size={16} />,
+  info:    <Info size={16} />,
+};
+const TOAST_COLORS = {
+  success: { bg: 'var(--green-bg, #e8f5e9)', border: 'var(--green, #43a047)', color: 'var(--green, #43a047)' },
+  error:   { bg: 'var(--red-bg, #ffeaea)',   border: 'var(--red, #e53935)',   color: 'var(--red, #e53935)' },
+  info:    { bg: 'var(--accent-light)',       border: 'var(--accent)',         color: 'var(--accent-dark)' },
+};
+
+const ToastCtx = createContext(null);
+
+export function useToast() {
+  return useContext(ToastCtx);
+}
+
+export function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = useCallback((message, type = 'success', duration = 3500) => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
+  }, []);
+
+  const dismiss = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  return (
+    <ToastCtx.Provider value={addToast}>
+      {children}
+      {/* Toast container */}
+      <div style={{
+        position: 'fixed', bottom: 20, right: 20, zIndex: 9999,
+        display: 'flex', flexDirection: 'column-reverse', gap: 8,
+        pointerEvents: 'none',
+      }}>
+        {toasts.map(t => {
+          const c = TOAST_COLORS[t.type] || TOAST_COLORS.info;
+          return (
+            <div key={t.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 16px', borderRadius: 'var(--r-md, 8px)',
+              background: c.bg, border: `1px solid ${c.border}`,
+              color: c.color, fontSize: 13, fontWeight: 600,
+              boxShadow: 'var(--shadow-md, 0 4px 12px rgba(0,0,0,.1))',
+              pointerEvents: 'auto', minWidth: 240, maxWidth: 380,
+              animation: 'toast-in .25s ease',
+            }}>
+              {TOAST_ICONS[t.type]}
+              <span style={{ flex: 1 }}>{t.message}</span>
+              <button onClick={() => dismiss(t.id)} style={{
+                border: 'none', background: 'none', cursor: 'pointer',
+                color: c.color, padding: 2, display: 'flex',
+              }}>
+                <X size={14} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </ToastCtx.Provider>
+  );
+}

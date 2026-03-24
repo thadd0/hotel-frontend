@@ -1,26 +1,26 @@
 import { apiFetch } from './client';
-import type { CuentaAlquiler } from '../types';
+import type { CuentaAlquilerDTO } from '../types';
 
-export async function getConsumosByAlquiler(id_alquiler: number): Promise<CuentaAlquiler[]> {
-  return apiFetch(`/api/consumos/alquiler/${id_alquiler}`);
+export async function getCuentasByAlquiler(alquilerId: number): Promise<CuentaAlquilerDTO[]> {
+  return apiFetch(`/api/recepcion/alquiler/${alquilerId}/cuenta`);
 }
 
-export async function postConsumo(consumo: Omit<CuentaAlquiler, 'id'>): Promise<CuentaAlquiler> {
-  return apiFetch('/api/consumos', {
+export async function postCuenta(alquilerId: number, data: Omit<CuentaAlquilerDTO, 'id' | 'subTotal' | 'alquilerId'>): Promise<CuentaAlquilerDTO> {
+  return apiFetch(`/api/recepcion/alquiler/${alquilerId}/cuenta`, {
     method: 'POST',
-    data: consumo,
+    data,
   });
 }
 
-export async function putConsumo(id: number, consumo: Omit<CuentaAlquiler, 'id'>): Promise<CuentaAlquiler> {
-  return apiFetch(`/api/consumos/${id}`, {
+export async function putCuenta(alquilerId: number, id: number, data: Omit<CuentaAlquilerDTO, 'id' | 'subTotal' | 'alquilerId'>): Promise<CuentaAlquilerDTO> {
+  return apiFetch(`/api/recepcion/alquiler/${alquilerId}/cuenta/${id}`, {
     method: 'PUT',
-    data: consumo,
+    data,
   });
 }
 
-export async function deleteConsumo(id: number) {
-  return apiFetch(`/api/consumos/${id}`, {
+export async function deleteCuenta(alquilerId: number, id: number) {
+  return apiFetch(`/api/recepcion/alquiler/${alquilerId}/cuenta/${id}`, {
     method: 'DELETE',
   });
 }

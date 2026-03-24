@@ -1,22 +1,28 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { HotelProvider, useHotel } from './context/HotelContext';
-import { TooltipProvider } from './components/UI/index.jsx';
+import { TooltipProvider, ToastProvider } from './components/UI/index.jsx';
 import Layout from './components/Layout/Layout.jsx';
 import Login from './pages/Login';
 import RecepcionGeneral from './pages/RecepcionGeneral';
 import Habitaciones from './pages/Habitaciones';
-import Categorias from './pages/Categorias';
-import Ubicaciones from './pages/Ubicaciones';
-import Sucursales from './pages/Sucursales';
 import Tarifas from './pages/Tarifas';
 import Caja from './pages/Caja';
 import Empresa from './pages/Empresa';
 import Clientes from './pages/Clientes';
-import TiposAlquiler from './pages/TiposAlquiler';
-import TiposHabitacion from './pages/TiposHabitacion';
+import Configuracion from './pages/Configuracion';
+import Alquileres from './pages/Alquileres';
+import Usuarios from './pages/Usuarios';
+import Perfil from './pages/Perfil';
 
 function AppContent() {
-  const { isLoggedIn } = useHotel();
+  const { isLoggedIn, userRole } = useHotel();
+
+  const RequireAdmin = ({ children }) => {
+    if (userRole !== 'admin') {
+      return <Navigate to="/" replace />;
+    }
+    return children;
+  };
 
   if (!isLoggedIn) {
     return <Login />;
@@ -28,14 +34,16 @@ function AppContent() {
         <Route path="/" element={<Layout />}>
           <Route index element={<RecepcionGeneral />} />
           <Route path="habitaciones" element={<Habitaciones />} />
-          <Route path="categorias" element={<Categorias />} />
-          <Route path="ubicaciones" element={<Ubicaciones />} />
-          <Route path="tarifas" element={<Tarifas />} />
+          <Route path="configuracion" element={<RequireAdmin><Configuracion /></RequireAdmin>} />
+          <Route path="tarifas" element={<RequireAdmin><Tarifas /></RequireAdmin>} />
           <Route path="caja" element={<Caja />} />
-          <Route path="empresa" element={<Empresa />} />
+          <Route path="empresa" element={<RequireAdmin><Empresa /></RequireAdmin>} />
           <Route path="clientes" element={<Clientes />} />
-          <Route path="tipos-alquiler" element={<TiposAlquiler />} />
-          <Route path="tipos-habitacion" element={<TiposHabitacion />} />
+
+          <Route path="alquileres" element={<Alquileres />} />
+          <Route path="usuarios" element={<RequireAdmin><Usuarios /></RequireAdmin>} />
+          <Route path="perfil" element={<Perfil />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
@@ -46,7 +54,9 @@ export default function App() {
   return (
     <HotelProvider>
       <TooltipProvider>
-        <AppContent />
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
       </TooltipProvider>
     </HotelProvider>
   );

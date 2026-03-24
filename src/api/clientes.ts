@@ -1,31 +1,31 @@
 import { apiFetch } from './client';
-import type { Cliente } from '../types';
+import type { ClienteDTO } from '../types';
 
-export async function getClientes(): Promise<Cliente[]> {
-  return apiFetch('/api/clientes');
+export async function getClientes(): Promise<ClienteDTO[]> {
+  return apiFetch('/api/recepcion/clientes');
 }
 
-export async function postCliente(cliente: Omit<Cliente, 'id'>): Promise<Cliente> {
-  return apiFetch('/api/clientes', {
+export async function getCliente(id: number): Promise<ClienteDTO> {
+  return apiFetch(`/api/recepcion/clientes/${id}`);
+}
+
+export async function postCliente(data: Omit<ClienteDTO, 'id'>): Promise<ClienteDTO> {
+  return apiFetch('/api/recepcion/clientes', {
     method: 'POST',
-    data: cliente,
+    data,
   });
 }
 
-export async function putCliente(id: number, cliente: Omit<Cliente, 'id'>): Promise<Cliente> {
-  return apiFetch(`/api/clientes/${id}`, {
+export async function putCliente(id: number, data: Omit<ClienteDTO, 'id'>): Promise<ClienteDTO> {
+  return apiFetch(`/api/recepcion/clientes/${id}`, {
     method: 'PUT',
-    data: cliente,
+    data,
   });
 }
 
 export async function deleteCliente(id: number) {
-  return apiFetch(`/api/clientes/${id}`, {
+  return apiFetch(`/api/recepcion/clientes/${id}`, {
     method: 'DELETE',
   });
-}
-
-export async function getClienteByDocumento(num_documento: string): Promise<Cliente | null> {
-  return apiFetch(`/api/clientes/by-documento/${num_documento}`);
 }
 

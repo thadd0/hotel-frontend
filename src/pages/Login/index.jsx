@@ -2,26 +2,35 @@ import { useState } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Card, Btn } from '../../components/UI/index.jsx';
 import { Label } from '@radix-ui/react-label';
-import { LogIn } from 'lucide-react';
+import { LogIn, Loader2 } from 'lucide-react';
+import { login as apiLogin } from '../../auth/api';
 
 export default function Login() {
-  const { login, setUserRole } = useHotel();
+  const { login } = useHotel();
   const [dni, setDni] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!dni.trim() || !password.trim()) {
       setError('Por favor, ingresa tu DNI y contraseña');
       return;
     }
-    // Mock roles: DNI even=admin, odd=recepcion
-    const role = parseInt(dni) % 2 === 0 ? 'admin' : 'recepcion';
-    setUserRole(role);
-    localStorage.setItem('userRole', role);
-    login();
     setError('');
+    setLoading(true);
+    try {
+      const authResponse = await apiLogin({ numDocumento: dni.trim(), password });
+      login(authResponse);
+    } catch (err) {
+      const msg = err?.response?.data?.message
+        || err?.response?.data?.error
+        || 'Credenciales inválidas o servidor no disponible';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,7 +41,7 @@ export default function Login() {
       height: '100vh',
       background: 'var(--bg)',
     }}>
-      <Card style={{ width: 400, padding: '32px' }}>
+      <Card style={{ width: '100%', maxWidth: 400, padding: '32px', margin: '0 16px' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
             Iniciar Sesión
@@ -99,8 +108,8 @@ export default function Login() {
             </div>
           )}
 
-          <Btn type="submit" full icon={<LogIn size={16} />}>
-            Iniciar Sesión
+          <Btn type="submit" full icon={loading ? <Loader2 size={16} className="spin" /> : <LogIn size={16} />} disabled={loading}>
+            {loading ? 'Ingresando…' : 'Iniciar Sesión'}
           </Btn>
         </form>
       </Card>

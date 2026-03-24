@@ -5,20 +5,21 @@ import { Field, Btn, SearchInput } from './UI/index.jsx';
 import { Users, Plus, Check } from 'lucide-react';
 
 export default function CheckInClienteList({ clientes = [], onClientesChange, onAddModeChange }) {
-  const { clientes: allClientes, addCliente, updateCliente, deleteCliente } = useHotel();
+  const { clientes: allClientes, addCliente, updateCliente, deleteCliente, tiposDocumento, empresas } = useHotel();
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => clientes.map((c) => c?.id).filter(Boolean));
   const [newClienteData, setNewClienteData] = useState({
     tipoDocumento: 'DNI',
-    num_documento: '',
+    numDocumento: '',
     nombre: '',
     telefono: '',
+    empresaId: '',
   });
   const [editingCliente, setEditingCliente] = useState(null);
   const [editClienteData, setEditClienteData] = useState({
     tipoDocumento: 'DNI',
-    num_documento: '',
+    numDocumento: '',
     nombre: '',
     telefono: '',
   });
@@ -32,8 +33,7 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
     const term = searchTerm.toLowerCase();
     return allClientes.filter((cliente) =>
       cliente.nombre?.toLowerCase().includes(term) ||
-      cliente.documento?.toString().toLowerCase().includes(term) ||
-      cliente.num_documento?.toString().toLowerCase().includes(term)
+      cliente.numDocumento?.toString().toLowerCase().includes(term)
     );
   }, [allClientes, searchTerm]);
 
@@ -58,8 +58,8 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
   const startEditCliente = (cliente) => {
     setEditingCliente(cliente);
     setEditClienteData({
-      tipoDocumento: cliente.tipoDocumento || 'DNI',
-      num_documento: cliente.num_documento || cliente.documento || '',
+      tipoDocumento: cliente.tipoDocumento?.nombre || cliente.tipoDocumento || 'DNI',
+      numDocumento: cliente.numDocumento || '',
       nombre: cliente.nombre || '',
       telefono: cliente.telefono || '',
     });
@@ -71,37 +71,43 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
 
   const saveEditCliente = async () => {
     if (!editingCliente?.id) return;
-    if (!editClienteData.nombre.trim() || !editClienteData.num_documento.trim()) return;
-
-    await updateCliente(editingCliente.id, {
-      tipoDocumento: editClienteData.tipoDocumento,
-      num_documento: editClienteData.num_documento,
-      nombre: editClienteData.nombre,
-      telefono: editClienteData.telefono,
-    });
-
-    setEditingCliente(null);
-    updateSelectedClientes(selectedIds);
+    if (!editClienteData.nombre.trim() || !editClienteData.numDocumento.trim()) return;
+    try {
+      await updateCliente(editingCliente.id, {
+        tipoDocumento: editClienteData.tipoDocumento,
+        numDocumento: editClienteData.numDocumento,
+        nombre: editClienteData.nombre,
+        telefono: editClienteData.telefono,
+      });
+      setEditingCliente(null);
+      updateSelectedClientes(selectedIds);
+    } catch {
+      // keep modal open so user can retry
+    }
   };
 
-  const removeCliente = (clienteId) => {
-    deleteCliente(clienteId);
-    const nextIds = selectedIds.filter((id) => id !== clienteId);
-    setSelectedIds(nextIds);
-    onClientesChange?.(allClientes.filter((c) => nextIds.includes(c.id)));
+  const removeCliente = async (clienteId) => {
+    try {
+      await deleteCliente(clienteId);
+      const nextIds = selectedIds.filter((id) => id !== clienteId);
+      setSelectedIds(nextIds);
+      onClientesChange?.(allClientes.filter((c) => nextIds.includes(c.id)));
+    } catch {
+      // keep list unchanged if delete fails
+    }
   };
 
   const saveNewCliente = async () => {
-    const { tipoDocumento, num_documento, nombre, telefono } = newClienteData;
-    if (!nombre.trim() || !num_documento.trim()) return;
+    const { tipoDocumento, numDocumento, nombre, telefono } = newClienteData;
+    if (!nombre.trim() || !numDocumento.trim()) return;
 
     try {
-      const savedCliente = await addCliente({ tipoDocumento, num_documento, nombre, telefono });
+      const savedCliente = await addCliente({ tipoDocumento, numDocumento, nombre, telefono });
       if (!savedCliente) return;
 
       const nextIds = [...selectedIds, savedCliente.id];
       updateSelectedClientes(nextIds);
-      setNewClienteData({ tipoDocumento: 'DNI', num_documento: '', nombre: '', telefono: '' });
+      setNewClienteData({ tipoDocumento: 'DNI', numDocumento: '', nombre: '', telefono: '', empresaId: '' });
       setShowNewForm(false);
       setSearchTerm('');
       onAddModeChange?.(false);
@@ -170,8 +176,8 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
                         <label>Documento</label>
                         <input
                           type="text"
-                          value={editClienteData.num_documento}
-                          onChange={(e) => setEditClienteData((s) => ({ ...s, num_documento: e.target.value }))}
+                          value={editClienteData.numDocumento}
+                          onChange={(e) => setEditClienteData((s) => ({ ...s, numDocumento: e.target.value }))}
                           placeholder="DNI / RUC / Carné"
                         />
                       </div>
@@ -193,7 +199,7 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
                     <>
                       <div className="client-row-text" onClick={() => toggleSelectCliente(cliente)}>
                         <strong>{cliente.nombre}</strong>
-                        <span>{cliente.tipoDocumento || 'DNI'}: {cliente.num_documento || cliente.documento || '—'}</span>
+                        <span>{cliente.tipoDocumento?.nombre || cliente.tipoDocumento || 'DNI'}: {cliente.numDocumento || '—'}{cliente.empresaNombre ? ` · ${cliente.empresaNombre}` : ''}</span>
                       </div>
                       <div className="client-row-actions">
                         <button type="button" onClick={() => startEditCliente(cliente)}>Editar</button>
@@ -216,17 +222,17 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
               onChange={(e) => setNewClienteData({ ...newClienteData, tipoDocumento: e.target.value })}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
             >
-              <option value="DNI">DNI</option>
-              <option value="RUC">RUC</option>
-              <option value="CARNET">Carné de Extranjería</option>
+              {tiposDocumento.map(td => (
+                <option key={td.id} value={td.nombre}>{td.nombre}</option>
+              ))}
             </select>
           </Field>
 
           <Field label="Número de documento" required>
             <input
               type="text"
-              value={newClienteData.num_documento}
-              onChange={(e) => setNewClienteData({ ...newClienteData, num_documento: e.target.value })}
+              value={newClienteData.numDocumento}
+              onChange={(e) => setNewClienteData({ ...newClienteData, numDocumento: e.target.value })}
               style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
               placeholder="Documento"
             />
@@ -250,6 +256,19 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
               style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
               placeholder="Teléfono"
             />
+          </Field>
+
+          <Field label="Empresa (opcional)">
+            <select
+              value={newClienteData.empresaId}
+              onChange={(e) => setNewClienteData({ ...newClienteData, empresaId: e.target.value })}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
+            >
+              <option value="">Sin empresa</option>
+              {empresas.map(emp => (
+                <option key={emp.id} value={String(emp.id)}>{emp.nombre} ({emp.ruc})</option>
+              ))}
+            </select>
           </Field>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>

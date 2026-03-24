@@ -1,26 +1,30 @@
 import { apiFetch } from './client';
-import { Tarifa } from '../types';
+import type { TarifaDTO } from '../types';
 
-export const getTarifas = async (): Promise<Tarifa[]> => {
-  return apiFetch('/tarifas');
+export const getTarifas = async (): Promise<TarifaDTO[]> => {
+  return apiFetch('/api/recepcion/tarifas');
 };
 
-export const postTarifa = async (tarifa: Omit<Tarifa, 'id'>): Promise<Tarifa> => {
-  return apiFetch('/tarifas', {
+export const getTarifa = async (id: number): Promise<TarifaDTO> => {
+  return apiFetch(`/api/recepcion/tarifas/${id}`);
+};
+
+export const postTarifa = async (data: Omit<TarifaDTO, 'id'>): Promise<TarifaDTO> => {
+  return apiFetch('/api/recepcion/tarifas', {
     method: 'POST',
-    body: JSON.stringify(tarifa),
+    data,
   });
 };
 
-export const putTarifa = async (id: number, tarifa: Omit<Tarifa, 'id'>): Promise<Tarifa> => {
-  return apiFetch(`/tarifas/${id}`, {
+export const putTarifa = async (id: number, data: Omit<TarifaDTO, 'id'>): Promise<TarifaDTO> => {
+  return apiFetch(`/api/recepcion/tarifas/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(tarifa),
+    data,
   });
 };
 
 export const deleteTarifa = async (id: number): Promise<void> => {
-  return apiFetch(`/tarifas/${id}`, {
+  return apiFetch(`/api/recepcion/tarifas/${id}`, {
     method: 'DELETE',
   });
 };

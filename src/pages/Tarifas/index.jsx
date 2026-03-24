@@ -1,144 +1,111 @@
 import { useState, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
-import { RSelect, SearchInput, Table, Card, Btn, Field, Modal, ConfirmDialog, EmptyState, Pagination, EditBtn, DeleteBtn } from '../../components/UI/index.jsx';
+import { RSelect, SearchInput, Table, Btn, Field, Modal, ConfirmDialog, EmptyState, Pagination, EditBtn, DeleteBtn } from '../../components/UI/index.jsx';
 import { Plus, DollarSign } from 'lucide-react';
 import styles from './Tarifas.module.css';
 
 const PER_PAGE = 12;
-function getHoraMultiplier(catId) {
-  return catId === 1 ? 30 / 50 : 40 / 80;
-}
-
-const TIPO_ALQUILERES = [
-  { value: 'dia', label: 'Por Día', multiplier: 1 },
-  { value: 'noche', label: 'Por Noche', multiplier: 0.8 },
-  { value: 'hora', label: 'Por Hora', getMultiplier: getHoraMultiplier },
-];
 
 export default function Tarifas() {
-  const { tarifas, categorias, allHabitaciones: habitaciones, addTarifa, updateTarifa, deleteTarifa } = useHotel();
+  const { tarifas, tiposHabitacion, tiposAlquiler, addTarifa, updateTarifa, deleteTarifa } = useHotel();
 
-  // States for filters and CRUD
-  const [filterCategoria, setFilterCategoria] = useState('');
-  const [filterAlquiler, setFilterAlquiler] = useState('');
+  const [filterTipoHab, setFilterTipoHab] = useState('');
+  const [filterTipoAlq, setFilterTipoAlq] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ nombre: '', visible: true });
+  const [form, setForm] = useState({ precio: '', tipoHabitacionId: '', tipoAlquilerId: '' });
   const [confirmId, setConfirmId] = useState(null);
   const [errors, setErrors] = useState({});
 
-  // Compute enriched combos: tarifa x categoria (via habitaciones) x alquiler
-  const combos = useMemo(() => {
-    const tarifaMap = new Map(tarifas.map(t => [t.id, parseFloat(t.nombre)]));
-    const catMap = new Map(categorias.map(c => [c.id, c.nombre]));
-    
-    const tarifaCats = new Map(); // tarifaId -> Set<catId>
-    habitaciones.forEach(h => {
-      h.tarifaIds.forEach(tid => {
-        if (!tarifaCats.has(tid)) tarifaCats.set(tid, new Set());
-        tarifaCats.get(tid).add(h.categoriaId);
-      });
-    });
-
-    const combosList = [];
-    tarifas.forEach(tarifa => {
-      const cats = tarifaCats.get(tarifa.id) || new Set([1,2]); // fallback to all cats if no rooms
-      cats.forEach(catId => {
-        const catNombre = catMap.get(catId) || 'Desconocida';
-        TIPO_ALQUILERES.forEach(alquiler => {
-          const base = tarifaMap.get(tarifa.id) || 0;
-            const horaMultiplier = alquiler.getMultiplier ? alquiler.getMultiplier(catId) : 0.04;
-            combosList.push({
-              ...tarifa,
-              categoriaId: catId,
-              catNombre,
-              alquiler,
-              basePrecio: base,
-              precioDia: (base * 1).toFixed(2),
-              precioNoche: (base * 0.8).toFixed(2),
-              precioHora: (base * horaMultiplier).toFixed(2),
-            });
-        });
-      });
-    });
-    return combosList;
-  }, [tarifas, categorias, habitaciones]);
-
-  // Apply filters
-  const filteredCombos = useMemo(() => {
-    let result = combos;
-    if (filterCategoria && filterCategoria !== '0') {
-      result = result.filter(c => c.categoriaId === parseInt(filterCategoria));
+  // Filter tarifas
+  const filtered = useMemo(() => {
+    let result = tarifas;
+    if (filterTipoHab && filterTipoHab !== '0') {
+      result = result.filter(t => t.tipoHabitacion?.id === parseInt(filterTipoHab));
     }
-    if (filterAlquiler && filterAlquiler !== 'none') {
-      result = result.filter(c => c.alquiler.value === filterAlquiler);
+    if (filterTipoAlq && filterTipoAlq !== '0') {
+      result = result.filter(t => t.tipoAlquiler?.id === parseInt(filterTipoAlq));
     }
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter(c => 
-        c.nombre.toLowerCase().includes(q) ||
-        c.catNombre.toLowerCase().includes(q) ||
-        c.alquiler.label.toLowerCase().includes(q)
+      result = result.filter(t =>
+        t.tipoHabitacion?.nombre?.toLowerCase().includes(q) ||
+        t.tipoAlquiler?.nombre?.toLowerCase().includes(q) ||
+        String(t.precio).includes(q)
       );
     }
     return result;
-  }, [combos, filterCategoria, filterAlquiler, search]);
+  }, [tarifas, filterTipoHab, filterTipoAlq, search]);
 
-  const pagedCombos = filteredCombos.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  // CRUD handlers
   const openNew = () => {
     setEditId(null);
-    setForm({ nombre: '', visible: true });
+    setForm({ precio: '', tipoHabitacionId: '', tipoAlquilerId: '' });
     setErrors({});
     setModalOpen(true);
   };
 
   const openEdit = (item) => {
     setEditId(item.id);
-    setForm({ nombre: item.nombre, visible: item.visible ?? true });
+    setForm({
+      precio: String(item.precio ?? ''),
+      tipoHabitacionId: String(item.tipoHabitacion?.id ?? ''),
+      tipoAlquilerId: String(item.tipoAlquiler?.id ?? ''),
+    });
     setErrors({});
     setModalOpen(true);
   };
 
   const validate = () => {
     const errs = {};
-    if (!form.nombre.trim()) errs.nombre = 'Precio requerido';
+    if (!form.precio || isNaN(form.precio) || Number(form.precio) <= 0) errs.precio = 'Precio válido requerido';
+    if (!form.tipoHabitacionId) errs.tipoHabitacionId = 'Seleccione tipo de habitación';
+    if (!form.tipoAlquilerId) errs.tipoAlquilerId = 'Seleccione tipo de alquiler';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    const payload = { ...form };
-    if (editId) {
-      updateTarifa(editId, payload);
-    } else {
-      addTarifa(payload);
+    const payload = {
+      precio: Number(form.precio),
+      tipoHabitacionId: Number(form.tipoHabitacionId),
+      tipoAlquilerId: Number(form.tipoAlquilerId),
+    };
+    try {
+      editId ? await updateTarifa(editId, payload) : await addTarifa(payload);
+      addToast(editId ? 'Tarifa actualizada' : 'Tarifa creada', 'success');
+      setModalOpen(false);
+    } catch {
+      addToast('Error al guardar la tarifa', 'error');
     }
-    setModalOpen(false);
   };
 
-  const handleDelete = () => {
-    deleteTarifa(confirmId);
+  const handleDelete = async () => {
+    try {
+      await deleteTarifa(confirmId);
+      addToast('Tarifa eliminada', 'info');
+    } catch {
+      addToast('Error al eliminar la tarifa', 'error');
+    }
     setConfirmId(null);
   };
 
-  const categoriaOptions = [
-    { value: '0', label: 'Todas las Categorías' },
-    ...categorias.map(c => ({ value: String(c.id), label: c.nombre }))
+  const tipoHabOptions = [
+    { value: '0', label: 'Todos los Tipos Hab.' },
+    ...tiposHabitacion.map(t => ({ value: String(t.id), label: t.nombre })),
   ];
 
-  const alquilerOptions = [
-    { value: 'none', label: 'Todos los Tipos' },
-    ...TIPO_ALQUILERES.map(a => ({ value: a.value, label: a.label }))
+  const tipoAlqOptions = [
+    { value: '0', label: 'Todos los Tipos Alq.' },
+    ...tiposAlquiler.map(t => ({ value: String(t.id), label: t.nombre })),
   ];
 
   return (
     <div className={styles.tarifasPage}>
-      {/* Header + New Button */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>Tarifas</h1>
         <Btn icon={<Plus size={14} />} className={styles.crudNew} onClick={openNew}>
@@ -146,55 +113,47 @@ export default function Tarifas() {
         </Btn>
       </div>
 
-      {/* Filters */}
       <div className={styles.filtersRow}>
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>Tipo de Habitación</label>
-          <RSelect value={filterCategoria || '0'} onValueChange={setFilterCategoria} options={categoriaOptions} />
+          <RSelect value={filterTipoHab || '0'} onValueChange={setFilterTipoHab} options={tipoHabOptions} />
         </div>
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>Tipo de Alquiler</label>
-          <RSelect value={filterAlquiler || 'none'} onValueChange={setFilterAlquiler} options={alquilerOptions} />
+          <RSelect value={filterTipoAlq || '0'} onValueChange={setFilterTipoAlq} options={tipoAlqOptions} />
         </div>
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>Buscar</label>
-          <SearchInput value={search} onChange={setSearch} placeholder="Precio, categoría..." />
+          <SearchInput value={search} onChange={setSearch} placeholder="Precio, tipo..." />
         </div>
       </div>
 
-      {/* Stats */}
       <div className={styles.statsRow}>
-        <span className={styles.statsCount}>{filteredCombos.length}</span>
+        <span className={styles.statsCount}>{filtered.length}</span>
         <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          {filteredCombos.length} tarifa{pagedCombos.length !== 1 ? 's' : ''} encontrada{pagedCombos.length !== 1 ? 's' : ''}
+          {filtered.length} tarifa{filtered.length !== 1 ? 's' : ''} encontrada{filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
 
-      {/* Table */}
       <div className={styles.tableContainer}>
-        {pagedCombos.length === 0 ? (
-          <EmptyState 
-            message="No hay tarifas que coincidan con los filtros" 
-            icon={<DollarSign size={40} />} 
+        {paged.length === 0 ? (
+          <EmptyState
+            message="No hay tarifas que coincidan con los filtros"
+            icon={<DollarSign size={40} />}
           />
         ) : (
-          <Table headers={['Categoría', 'Tipo de Alquiler', 'Precio', 'Visible', '']}>
-            {pagedCombos.map(combo => (
-              <tr key={`${combo.id}-${combo.categoriaId}-${combo.alquiler.value}`} className={styles.tr}>
-                <td className={styles.td}>{combo.catNombre.split(' ')[0]}</td>
-                <td className={styles.td}>{combo.alquiler.label}</td>
+          <Table headers={['Tipo Habitación', 'Tipo Alquiler', 'Precio', '']}>
+            {paged.map(tarifa => (
+              <tr key={tarifa.id} className={styles.tr}>
+                <td className={styles.td}>{tarifa.tipoHabitacion?.nombre || '—'}</td>
+                <td className={styles.td}>{tarifa.tipoAlquiler?.nombre || '—'}</td>
                 <td className={`${styles.td} ${styles.precioCell}`} style={{ textAlign: 'right', width: '160px' }}>
-                  <strong style={{ fontSize: 16, color: 'var(--accent-dark)' }}>S/ {(combo.basePrecio * (combo.alquiler.getMultiplier ? combo.alquiler.getMultiplier(combo.categoriaId) : combo.alquiler.multiplier)).toFixed(2)}</strong>
-                </td>
-                <td className={styles.td}>
-                  <span className={`${styles.visibleBadge} ${combo.visible ? styles.visibleYes : styles.visibleNo}`}>
-                    {combo.visible ? 'Sí' : 'No'}
-                  </span>
+                  <strong style={{ fontSize: 16, color: 'var(--accent-dark)' }}>S/ {Number(tarifa.precio).toFixed(2)}</strong>
                 </td>
                 <td className={`${styles.td} ${styles.actionsCell}`}>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <EditBtn onClick={() => openEdit(combo)} />
-                    <DeleteBtn onClick={() => setConfirmId(combo.id)} />
+                    <EditBtn onClick={() => openEdit(tarifa)} />
+                    <DeleteBtn onClick={() => setConfirmId(tarifa.id)} />
                   </div>
                 </td>
               </tr>
@@ -202,18 +161,49 @@ export default function Tarifas() {
           </Table>
         )}
         <div className={styles.paginationContainer}>
-          <Pagination page={page} total={filteredCombos.length} perPage={PER_PAGE} onChange={setPage} />
+          <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
         </div>
       </div>
 
-      {/* CRUD Modal */}
       <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId ? 'Editar Tarifa' : 'Nueva Tarifa'}>
-        <Field label="Precio Base (S/)" error={errors.nombre} required>
+        <Field label="Tipo de Habitación" error={errors.tipoHabitacionId} required>
+          <select
+            value={form.tipoHabitacionId}
+            onChange={e => setForm({ ...form, tipoHabitacionId: e.target.value })}
+            style={{
+              width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md)',
+              border: '1px solid var(--border)', fontSize: 14,
+              color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
+            }}
+          >
+            <option value="">Seleccione...</option>
+            {tiposHabitacion.map(t => <option key={t.id} value={String(t.id)}>{t.nombre}</option>)}
+          </select>
+        </Field>
+
+        <Field label="Tipo de Alquiler" error={errors.tipoAlquilerId} required>
+          <select
+            value={form.tipoAlquilerId}
+            onChange={e => setForm({ ...form, tipoAlquilerId: e.target.value })}
+            style={{
+              width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md)',
+              border: '1px solid var(--border)', fontSize: 14,
+              color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
+            }}
+          >
+            <option value="">Seleccione...</option>
+            {tiposAlquiler.map(t => <option key={t.id} value={String(t.id)}>{t.nombre}</option>)}
+          </select>
+        </Field>
+
+        <Field label="Precio (S/)" error={errors.precio} required>
           <input
             type="number"
-            value={form.nombre}
-            onChange={e => setForm({ ...form, nombre: e.target.value })}
-            placeholder="Ej: 50"
+            value={form.precio}
+            onChange={e => setForm({ ...form, precio: e.target.value })}
+            placeholder="Ej: 50.00"
+            min="0"
+            step="0.01"
             style={{
               width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md)',
               border: '1px solid var(--border)', fontSize: 16, textAlign: 'right',
@@ -223,32 +213,18 @@ export default function Tarifas() {
             }}
           />
         </Field>
-        <Field label="Visible">
-          {/* Simple checkbox since SwitchField needs Radix props */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={form.visible}
-              onChange={e => setForm({ ...form, visible: e.target.checked })}
-              style={{
-                width: 18, height: 18, accentColor: 'var(--accent)',
-              }}
-            />
-            <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Mostrar en sistema</span>
-          </label>
-        </Field>
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Btn variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Btn>
           <Btn onClick={handleSubmit}>{editId ? 'Actualizar' : 'Crear'}</Btn>
         </div>
       </Modal>
 
-      {/* Confirm Delete */}
       <ConfirmDialog
         open={!!confirmId}
         onOpenChange={setConfirmId}
         onConfirm={handleDelete}
-        message="¿Eliminar esta tarifa base? Las habitaciones seguirán funcionando."
+        message="¿Eliminar esta tarifa? Esta acción no se puede deshacer."
       />
     </div>
   );

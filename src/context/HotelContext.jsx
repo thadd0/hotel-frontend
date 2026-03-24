@@ -1,414 +1,295 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { initialData } from '../data/initialData';
-import { getHabitaciones, postHabitacion, putHabitacion, deleteHabitacion as deleteHabitacionAPI, postCheckIn, postCheckOut } from '../api/habitaciones';
-import { getCategorias, postCategoria, putCategoria, deleteCategoria as deleteCategoriaAPI } from '../api/categorias';
-import { getSucursales, postSucursal, putSucursal, deleteSucursal as deleteSucursalAPI } from '../api/sucursales';
-import { getUbicaciones, postUbicacion, putUbicacion, deleteUbicacion as deleteUbicacionAPI } from '../api/ubicaciones';
+
+// API imports (calls will fail gracefully when backend is offline — fallback to local mock)
+import { getHabitaciones, postHabitacion, putHabitacion, deleteHabitacion as deleteHabitacionAPI, patchEstadoHabitacion } from '../api/habitaciones';
+import { getAlquileresActivos, getAlquileresHistorial, postCheckIn, postCheckOut } from '../api/alquileres';
 import { getTarifas, postTarifa, putTarifa, deleteTarifa as deleteTarifaAPI } from '../api/tarifas';
+import { getTiposHabitacion, postTipoHabitacion, putTipoHabitacion, deleteTipoHabitacion as deleteTipoHabitacionAPI } from '../api/categorias';
+import { getTiposAlquiler, postTipoAlquiler, putTipoAlquiler, deleteTipoAlquiler as deleteTipoAlquilerAPI } from '../api/tiposAlquiler';
+import { getEmpresas, postEmpresa, putEmpresa, deleteEmpresa as deleteEmpresaAPI } from '../api/empresas';
+import { getClientes, postCliente, putCliente, deleteCliente as deleteClienteAPI } from '../api/clientes';
+import { getResumenHoy } from '../api/caja';
+import { logout as logoutApi } from '../auth/api';
+import { deriveAppRole } from '../auth/roles';
+import { getAccessToken, hasAccessToken, setAccessToken, setRefreshToken, clearAuthStorage } from '../auth/storage';
 
 const HotelContext = createContext(null);
 
 export function HotelProvider({ children }) {
-  const [sucursales,   setSucursales]   = useState([{ id: 0, nombre: 'Todos los Pisos' }]);
-  const [categorias,   setCategorias]   = useState(initialData.categorias);
-  const [ubicaciones,  setUbicaciones]  = useState(initialData.ubicaciones);
-const [empresa, setEmpresa] = useState(initialData.empresa);
-  const [tiposAlquiler, setTiposAlquiler] = useState(initialData.tiposAlquiler);
+  // ── State aligned to backend DTOs ──────────────────────────────────
   const [tiposHabitacion, setTiposHabitacion] = useState(initialData.tiposHabitacion);
-  const [tarifas,      setTarifas]      = useState(initialData.tarifas);
-  const [habitaciones, setHabitaciones] = useState(initialData.habitaciones); // visual mock data
-const [sucursalActiva, setSucursalActiva] = useState(0); // 0 = all pisos
-  const [clientes, setClientes] = useState(() => {
-    try {
-      const saved = localStorage.getItem('hotelClientes');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [tiposAlquiler,   setTiposAlquiler]   = useState(initialData.tiposAlquiler);
+  const [tarifas,         setTarifas]         = useState(initialData.tarifas);
+  const [habitaciones,    setHabitaciones]    = useState(initialData.habitaciones);
+  const [empresas,        setEmpresas]        = useState(initialData.empresas);
+  const [clientes,        setClientes]        = useState(initialData.clientes);
+  const [alquileres,      setAlquileres]      = useState(initialData.alquileres);
+  const [movimientosCaja, setMovimientosCaja] = useState(initialData.movimientosCaja);
+  const [tiposDocumento]                      = useState(initialData.tiposDocumento);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState('admin'); // 'admin' | 'recepcion'
-  const [token, setToken] = useState(localStorage.getItem('hotelToken') || null);
+  // ── Auth state ─────────────────────────────────────────────────────
+  const [isLoggedIn, setIsLoggedIn] = useState(() => hasAccessToken());
+  const [userRole,   setUserRole]   = useState('admin'); // 'admin' | 'recepcion'
+  const [token,      setToken]      = useState(getAccessToken());
+  const [userName,   setUserName]   = useState('');
 
-  const login = useCallback((newToken) => {
+  const login = useCallback((authResponse) => {
     setIsLoggedIn(true);
-    if (newToken) {
-      setToken(newToken);
-      localStorage.setItem('hotelToken', newToken);
+    if (authResponse) {
+      setToken(authResponse.access_token);
+      setUserRole(deriveAppRole(authResponse.access_token, authResponse.rol));
+      setUserName(authResponse.nombre || '');
+      setAccessToken(authResponse.access_token);
+      if (authResponse.refresh_token) {
+        setRefreshToken(authResponse.refresh_token);
+      }
     }
   }, []);
 
-  const toggleRole = useCallback((role) => {
-    if (role === 'admin' || role === 'recepcion') {
-      setUserRole(role);
-      localStorage.setItem('userRole', role);
+  const logout = useCallback(async () => {
+    try {
+      await logoutApi();
+    } catch (_) {
+      // ignore — token may already be expired
+    } finally {
+      setIsLoggedIn(false);
+      setUserRole('admin');
+      setToken(null);
+      setUserName('');
+      clearAuthStorage();
     }
   }, []);
 
-  const logout = useCallback(() => {
-    setIsLoggedIn(false);
-    setUserRole('admin');
-    localStorage.removeItem('userRole');
-  }, []);
-
-// Persist role + clientes
+  // Restore auth state on mount (role is derived from JWT)
   useEffect(() => {
-    const savedRole = localStorage.getItem('userRole');
-    if (savedRole && (savedRole === 'admin' || savedRole === 'recepcion')) {
-      setUserRole(savedRole);
+    const savedToken = getAccessToken();
+    if (savedToken) {
+      setIsLoggedIn(true);
+      setToken(savedToken);
+      setUserRole(deriveAppRole(savedToken));
     }
   }, []);
 
-  // Persist clientes
+  // Keep app role aligned with the current access token
   useEffect(() => {
-    localStorage.setItem('hotelClientes', JSON.stringify(clientes));
-  }, [clientes]);
-
-  const nextId = (arr) => (arr.length ? Math.max(...arr.map(i => i.id)) + 1 : 1);
-
-  const addSucursal = useCallback(async (d) => {
-    try {
-      const newSuc = await postSucursal(d);
-      setSucursales(p => [...p, newSuc]);
-    } catch (error) {
-      console.warn('Failed to add sucursal:', error);
-      setSucursales(p => [...p, { ...d, id: nextId(p) }]);
+    if (!token) {
+      setUserRole('admin');
+      return;
     }
-  }, []);
+    setUserRole(deriveAppRole(token));
+  }, [token]);
 
-  const updateSucursal = useCallback(async (id, d) => {
-    try {
-      const updated = await putSucursal(id, d);
-      setSucursales(p => p.map(s => s.id === id ? updated : s));
-    } catch (error) {
-      console.warn('Failed to update sucursal:', error);
-      setSucursales(p => p.map(s => s.id === id ? { ...s, ...d } : s));
-    }
-  }, []);
+  // Initial sync from backend when authenticated
+  useEffect(() => {
+    if (!token) return;
 
-  const deleteSucursal = useCallback(async (id) => {
-    try {
-      await deleteSucursalAPI(id);
-      setSucursales(p => p.filter(s => s.id !== id));
-    } catch (error) {
-      console.warn('Failed to delete sucursal:', error);
-      setSucursales(p => p.filter(s => s.id !== id));
-    }
-  }, []);
+    let alive = true;
 
-  const addCategoria = useCallback(async (d) => {
-    try {
-      const newCat = await postCategoria(d);
-      setCategorias(p => [...p, newCat]);
-    } catch (error) {
-      console.warn('Failed to add categoria:', error);
-      setCategorias(p => [...p, { ...d, id: nextId(p) }]);
-    }
-  }, []);
+    (async () => {
+      try {
+        const [
+          habitacionesRes,
+          tarifasRes,
+          tiposHabRes,
+          tiposAlqRes,
+          empresasRes,
+          clientesRes,
+          activosRes,
+          historialRes,
+          resumenRes,
+        ] = (await Promise.allSettled([
+          getHabitaciones(),
+          getTarifas(),
+          getTiposHabitacion(),
+          getTiposAlquiler(),
+          getEmpresas(),
+          getClientes(),
+          getAlquileresActivos(),
+          getAlquileresHistorial(), // admin-only — returns null for recepcionistas (403)
+          getResumenHoy(),
+        ])).map(r => r.status === 'fulfilled' ? r.value : null);
 
-  const updateCategoria = useCallback(async (id, d) => {
-    try {
-      const updated = await putCategoria(id, d);
-      setCategorias(p => p.map(c => c.id === id ? updated : c));
-    } catch (error) {
-      console.warn('Failed to update categoria:', error);
-      setCategorias(p => p.map(c => c.id === id ? { ...c, ...d } : c));
-    }
-  }, []);
+        if (!alive) return;
+        if (Array.isArray(habitacionesRes)) setHabitaciones(habitacionesRes);
+        if (Array.isArray(tarifasRes)) setTarifas(tarifasRes);
+        if (Array.isArray(tiposHabRes)) setTiposHabitacion(tiposHabRes);
+        if (Array.isArray(tiposAlqRes)) setTiposAlquiler(tiposAlqRes);
+        if (Array.isArray(empresasRes)) setEmpresas(empresasRes);
+        if (Array.isArray(clientesRes)) setClientes(clientesRes);
+        const alquileresMerged = [
+          ...(Array.isArray(activosRes) ? activosRes : []),
+          ...(Array.isArray(historialRes) ? historialRes : []),
+        ];
+        setAlquileres(alquileresMerged);
+        if (Array.isArray(resumenRes)) {
+          setMovimientosCaja(resumenRes);
+        }
+      } catch {
+        // Keep local mock state when backend is unavailable.
+      }
+    })();
 
-  const deleteCategoria = useCallback(async (id) => {
-    try {
-      await deleteCategoriaAPI(id);
-      setCategorias(p => p.filter(c => c.id !== id));
-    } catch (error) {
-      console.warn('Failed to delete categoria:', error);
-      setCategorias(p => p.filter(c => c.id !== id));
-    }
-  }, []);
+    return () => {
+      alive = false;
+    };
+  }, [token]);
 
-  const addUbicacion = useCallback(async (d) => {
-    try {
-      const newUbi = await postUbicacion(d);
-      setUbicaciones(p => [...p, newUbi]);
-    } catch (error) {
-      console.warn('Failed to add ubicacion:', error);
-      setUbicaciones(p => [...p, { ...d, id: nextId(p) }]);
-    }
-  }, []);
-
-  const updateUbicacion = useCallback(async (id, d) => {
-    try {
-      const updated = await putUbicacion(id, d);
-      setUbicaciones(p => p.map(u => u.id === id ? updated : u));
-    } catch (error) {
-      console.warn('Failed to update ubicacion:', error);
-      setUbicaciones(p => p.map(u => u.id === id ? { ...u, ...d } : u));
-    }
-  }, []);
-
-  const deleteUbicacion = useCallback(async (id) => {
-    try {
-      await deleteUbicacion(id);
-      setUbicaciones(p => p.filter(u => u.id !== id));
-    } catch (error) {
-      console.warn('Failed to delete ubicacion:', error);
-      setUbicaciones(p => p.filter(u => u.id !== id));
-    }
-  }, []);
-
-  const addTarifa = useCallback(async (d) => {
-    try {
-      const newTar = await postTarifa(d);
-      setTarifas(p => [...p, newTar]);
-    } catch (error) {
-      console.warn('Failed to add tarifa:', error);
-      setTarifas(p => [...p, { ...d, id: nextId(p) }]);
-    }
-  }, []);
-
-  const updateTarifa = useCallback(async (id, d) => {
-    try {
-      const updated = await putTarifa(id, d);
-      setTarifas(p => p.map(t => t.id === id ? updated : t));
-    } catch (error) {
-      console.warn('Failed to update tarifa:', error);
-      setTarifas(p => p.map(t => t.id === id ? { ...t, ...d } : t));
-    }
-  }, []);
-
-  const deleteTarifa = useCallback(async (id) => {
-    try {
-      await deleteTarifaAPI(id);
-      setTarifas(p => p.filter(t => t.id !== id));
-    } catch (error) {
-      console.warn('Failed to delete tarifa:', error);
-      setTarifas(p => p.filter(t => t.id !== id));
-    }
-  }, []);
-
-  const addHabitacion = useCallback(async (d) => {
-    try {
-      const newHab = await postHabitacion(d);
-      setHabitaciones(p => [...p, newHab]);
-    } catch (error) {
-      console.warn('Failed to add habitacion:', error);
-      // Fallback to local
-      setHabitaciones(p => [...p, { ...d, id: nextId(p), tarifaIds: d.tarifaIds||[], persons:[] }]);
-    }
-  }, []);
-
-  const updateHabitacion = useCallback(async (id, d) => {
-    try {
-      const updated = await putHabitacion(id, d);
-      setHabitaciones(p => p.map(h => h.id === id ? updated : h));
-    } catch (error) {
-      console.warn('Failed to update habitacion:', error);
-      // Fallback to local
-      setHabitaciones(p => p.map(h => h.id === id ? { ...h, ...d } : h));
-    }
-  }, []);
-
-  const deleteHabitacion = useCallback(async (id) => {
-    try {
-      await deleteHabitacionAPI(id);
-      setHabitaciones(p => p.filter(h => h.id !== id));
-    } catch (error) {
-      console.warn('Failed to delete habitacion:', error);
-      // Fallback to local
-      setHabitaciones(p => p.filter(h => h.id !== id));
-    }
-  }, []);
-  const cambiarEstado    = useCallback((id,e)=> setHabitaciones(p => p.map(h => h.id===id?{...h,estado:e}:h)), []);
-  const checkIn = useCallback(async (persons, roomSelections, nights, startDate, endDate) => {
-    // Persist on backend (if available) and update local state
-    try {
-      await postCheckIn({ persons, roomSelections, nights, startDate, endDate });
-    } catch (error) {
-      // Silently ignore: app continues to work offline / with mocked data
-      console.warn('Check-in API failed:', error);
-    }
-
-    setHabitaciones(p => p.map(h => {
-      const sel = roomSelections.find(r => r.id === h.id);
-      if (!sel) return h;
-
-      const tarifa = tarifas.find(t => t.id === sel.tarifaId);
-      const tarifaValue = Number(tarifa?.nombre || 0);
-
-      return {
-        ...h,
-        estado: 'OCUPADO',
-        persons,
-        checkIn: {
-          tarifaId: sel.tarifaId,
-          tarifaValue,
-          nights,
-          startDate,
-          endDate,
-          total: tarifaValue * nights,
-        },
-      };
-    }));
-  }, [tarifas]);
-
-  const checkOut = useCallback(async (habitationId) => {
-    try {
-      await postCheckOut(habitationId);
-    } catch (error) {
-      console.warn('Checkout API failed:', error);
-    }
-
-    setHabitaciones(p => p.map(h => 
-      h.id === habitationId
-        ? { ...h, estado: 'LIMPIEZA', persons: [] }
-        : h
-    ));
-  }, []);
-
-  const addCliente = useCallback(async (d) => {
-    try {
-      // Future API
-      // const newCli = await postCliente(d);
-      // setClientes(p => [...p, newCli]);
-    } catch (error) {
-      console.warn('Failed to add cliente:', error);
-    }
-    const newId = nextId(clientes);
-    const newCliente = { id: newId, ...d };
-    setClientes(p => [...p, newCliente]);
-    return newCliente;
-  }, [clientes]);
-
-  const updateCliente = useCallback(async (id, d) => {
-    try {
-      // Future API
-    } catch (error) {
-      console.warn('Failed to update cliente:', error);
-    }
-    setClientes(p => p.map(c => c.id === id ? { ...c, ...d } : c));
-  }, []);
-
-  const deleteCliente = useCallback(async (id) => {
-    try {
-      // Future API
-    } catch (error) {
-      console.warn('Failed to delete cliente:', error);
-    }
-    setClientes(p => p.filter(c => c.id !== id));
-  }, []);
-
-  const byBranch = (arr) => Array.isArray(arr) ? arr : []; // No filter
-
-// Disabled API loadAll - force use initialData mocks
-// useEffect(() => { ... }, []);
-
-  // CRUD nuevos tipos
-  const addTipoAlquiler = useCallback(async (d) => {
-    try {
-      // Future API postTipoAlquiler
-      setTiposAlquiler(p => [...p, { ...d, id: nextId(p) }]);
-    } catch (error) {
-      console.warn('Failed to add tipo alquiler:', error);
-      setTiposAlquiler(p => [...p, { ...d, id: nextId(p) }]);
-    }
-  }, []);
-
-  const updateTipoAlquiler = useCallback(async (id, d) => {
-    try {
-      // Future API
-      setTiposAlquiler(p => p.map(t => t.id === id ? { ...t, ...d } : t));
-    } catch (error) {
-      console.warn('Failed to update tipo alquiler:', error);
-      setTiposAlquiler(p => p.map(t => t.id === id ? { ...t, ...d } : t));
-    }
-  }, []);
-
-  const deleteTipoAlquiler = useCallback(async (id) => {
-    try {
-      // Future API
-      setTiposAlquiler(p => p.filter(t => t.id !== id));
-    } catch (error) {
-      console.warn('Failed to delete tipo alquiler:', error);
-      setTiposAlquiler(p => p.filter(t => t.id !== id));
-    }
-  }, []);
-
+  // ── Tipos Habitación CRUD ──────────────────────────────────────────
   const addTipoHabitacion = useCallback(async (d) => {
-    try {
-      // Future API
-      setTiposHabitacion(p => [...p, { ...d, id: nextId(p) }]);
-    } catch (error) {
-      console.warn('Failed to add tipo habitacion:', error);
-      setTiposHabitacion(p => [...p, { ...d, id: nextId(p) }]);
-    }
+    const created = await postTipoHabitacion(d);
+    setTiposHabitacion(p => [...p, created]);
   }, []);
 
   const updateTipoHabitacion = useCallback(async (id, d) => {
-    try {
-      // Future API
-      setTiposHabitacion(p => p.map(t => t.id === id ? { ...t, ...d } : t));
-    } catch (error) {
-      console.warn('Failed to update tipo habitacion:', error);
-      setTiposHabitacion(p => p.map(t => t.id === id ? { ...t, ...d } : t));
-    }
+    const updated = await putTipoHabitacion(id, d);
+    setTiposHabitacion(p => p.map(t => t.id === id ? updated : t));
   }, []);
 
   const deleteTipoHabitacion = useCallback(async (id) => {
-    try {
-      // Future API
-      setTiposHabitacion(p => p.filter(t => t.id !== id));
-    } catch (error) {
-      console.warn('Failed to delete tipo habitacion:', error);
-      setTiposHabitacion(p => p.filter(t => t.id !== id));
-    }
+    await deleteTipoHabitacionAPI(id);
+    setTiposHabitacion(p => p.filter(t => t.id !== id));
   }, []);
 
-  // Empresa CRUD (admin only, simple)
-  const updateEmpresa = useCallback(async (d) => {
-    try {
-      // Future API PATCH /empresa
-      setEmpresa({ ...empresa, ...d });
-    } catch (error) {
-      console.warn('Failed to update empresa:', error);
-      setEmpresa({ ...empresa, ...d });
-    }
-  }, [empresa]);
+  // ── Tipos Alquiler CRUD ────────────────────────────────────────────
+  const addTipoAlquiler = useCallback(async (d) => {
+    const created = await postTipoAlquiler(d);
+    setTiposAlquiler(p => [...p, created]);
+  }, []);
 
+  const updateTipoAlquiler = useCallback(async (id, d) => {
+    const updated = await putTipoAlquiler(id, d);
+    setTiposAlquiler(p => p.map(t => t.id === id ? updated : t));
+  }, []);
+
+  const deleteTipoAlquiler = useCallback(async (id) => {
+    await deleteTipoAlquilerAPI(id);
+    setTiposAlquiler(p => p.filter(t => t.id !== id));
+  }, []);
+
+  // ── Tarifas CRUD ───────────────────────────────────────────────────
+  const addTarifa = useCallback(async (d) => {
+    const created = await postTarifa(d);
+    setTarifas(p => [...p, created]);
+  }, []);
+
+  const updateTarifa = useCallback(async (id, d) => {
+    const updated = await putTarifa(id, d);
+    setTarifas(p => p.map(t => t.id === id ? updated : t));
+  }, []);
+
+  const deleteTarifa = useCallback(async (id) => {
+    await deleteTarifaAPI(id);
+    setTarifas(p => p.filter(t => t.id !== id));
+  }, []);
+
+  // ── Habitaciones CRUD ──────────────────────────────────────────────
+  const addHabitacion = useCallback(async (d) => {
+    const created = await postHabitacion(d);
+    setHabitaciones(p => [...p, created]);
+  }, []);
+
+  const updateHabitacion = useCallback(async (id, d) => {
+    const updated = await putHabitacion(id, d);
+    setHabitaciones(p => p.map(h => h.id === id ? updated : h));
+  }, []);
+
+  const deleteHabitacion = useCallback(async (id) => {
+    await deleteHabitacionAPI(id);
+    setHabitaciones(p => p.filter(h => h.id !== id));
+  }, []);
+
+  const cambiarEstado = useCallback(async (id, estado) => {
+    await patchEstadoHabitacion(id, estado);
+    setHabitaciones(p => p.map(h => h.id === id ? { ...h, estado } : h));
+  }, []);
+
+  // ── Empresas CRUD ──────────────────────────────────────────────────
+  const addEmpresa = useCallback(async (d) => {
+    const created = await postEmpresa(d);
+    setEmpresas(p => [...p, created]);
+  }, []);
+
+  const updateEmpresa = useCallback(async (id, d) => {
+    const updated = await putEmpresa(id, d);
+    setEmpresas(p => p.map(e => e.id === id ? updated : e));
+  }, []);
+
+  const deleteEmpresa = useCallback(async (id) => {
+    await deleteEmpresaAPI(id);
+    setEmpresas(p => p.filter(e => e.id !== id));
+  }, []);
+
+  // ── Clientes CRUD ──────────────────────────────────────────────────
+  const addCliente = useCallback(async (d) => {
+    const created = await postCliente(d);
+    setClientes(p => [...p, created]);
+    return created;
+  }, []);
+
+  const updateCliente = useCallback(async (id, d) => {
+    const updated = await putCliente(id, d);
+    setClientes(p => p.map(c => c.id === id ? updated : c));
+  }, []);
+
+  const deleteCliente = useCallback(async (id) => {
+    await deleteClienteAPI(id);
+    setClientes(p => p.filter(c => c.id !== id));
+  }, []);
+
+  // ── Check-in / Check-out ────────────────────────────────────────────
+  const checkIn = useCallback(async (checkInData) => {
+    const result = await postCheckIn(checkInData);
+    setAlquileres(p => [...p, result]);
+    setHabitaciones(p => p.map(h =>
+      h.id === checkInData.idHabitacion ? { ...h, estado: 'OCUPADA' } : h
+    ));
+  }, []);
+
+  const checkOut = useCallback(async (alquilerId, metodoPago) => {
+    const updated = await postCheckOut(alquilerId, metodoPago || 'EFECTIVO');
+    setAlquileres(p => p.map(a => a.id === alquilerId ? updated : a));
+    setHabitaciones(p => p.map(h =>
+      h.numero === updated.numeroHabitacion ? { ...h, estado: updated.estadoHabitacion } : h
+    ));
+  }, []);
+
+  // ── Derived: unique pisos from habitaciones ────────────────────────
+  const pisos = [...new Set(habitaciones.map(h => h.piso))].sort((a, b) => a - b);
+
+  // ── Provider value ─────────────────────────────────────────────────
   return (
     <HotelContext.Provider value={{
-      // No sucursales
-
-      empresa, updateEmpresa,
-      
-      tiposAlquiler, addTipoAlquiler, updateTipoAlquiler, deleteTipoAlquiler,
+      // Tipos
       tiposHabitacion, addTipoHabitacion, updateTipoHabitacion, deleteTipoHabitacion,
+      tiposAlquiler,   addTipoAlquiler,   updateTipoAlquiler,   deleteTipoAlquiler,
+      tiposDocumento,
 
-      categorias:    byBranch(categorias),
-      allCategorias: categorias,
-      addCategoria, updateCategoria, deleteCategoria,
+      // Tarifas
+      tarifas, addTarifa, updateTarifa, deleteTarifa,
 
-      ubicaciones:    byBranch(ubicaciones),
-      allUbicaciones: ubicaciones,
-      addUbicacion, updateUbicacion, deleteUbicacion,
+      // Habitaciones
+      habitaciones, addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado,
+      pisos,
 
-      tarifas:    byBranch(tarifas),
-      allTarifas: tarifas,
-      addTarifa, updateTarifa, deleteTarifa,
+      // Empresas (was "sucursales" / "empresa")
+      empresas, addEmpresa, updateEmpresa, deleteEmpresa,
 
-      habitaciones:    byBranch(habitaciones),
-      allHabitaciones: habitaciones,
-      addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado, checkIn, checkOut,
+      // Clientes
+      clientes, addCliente, updateCliente, deleteCliente,
 
-      clientes, allClientes: clientes,
-      addCliente, updateCliente, deleteCliente,
+      // Alquileres (check-in / check-out)
+      alquileres, checkIn, checkOut,
 
-      isLoggedIn, userRole, setUserRole, token, toggleRole, login, logout,
+      // Caja
+      movimientosCaja,
+
+      // Auth
+      isLoggedIn, userRole, token, userName, login, logout,
     }}>
       {children}
     </HotelContext.Provider>
   );
-
 }
 
 export const useHotel = () => {

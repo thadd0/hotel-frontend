@@ -1,26 +1,31 @@
 import { apiFetch } from './client';
-import { Categoria } from '../types';
+import type { TipoHabitacionDTO } from '../types';
 
-export const getCategorias = async (): Promise<Categoria[]> => {
-  return apiFetch('/categorias');
+// "Categorías" in the front maps to TipoHabitacion in the backend
+export const getTiposHabitacion = async (): Promise<TipoHabitacionDTO[]> => {
+  return apiFetch('/api/recepcion/tipos-habitacion');
 };
 
-export const postCategoria = async (categoria: Omit<Categoria, 'id'>): Promise<Categoria> => {
-  return apiFetch('/categorias', {
+export const getTipoHabitacion = async (id: number): Promise<TipoHabitacionDTO> => {
+  return apiFetch(`/api/recepcion/tipos-habitacion/${id}`);
+};
+
+export const postTipoHabitacion = async (data: Omit<TipoHabitacionDTO, 'id'>): Promise<TipoHabitacionDTO> => {
+  return apiFetch('/api/recepcion/tipos-habitacion', {
     method: 'POST',
-    body: JSON.stringify(categoria),
+    data,
   });
 };
 
-export const putCategoria = async (id: number, categoria: Omit<Categoria, 'id'>): Promise<Categoria> => {
-  return apiFetch(`/categorias/${id}`, {
+export const putTipoHabitacion = async (id: number, data: Omit<TipoHabitacionDTO, 'id'>): Promise<TipoHabitacionDTO> => {
+  return apiFetch(`/api/recepcion/tipos-habitacion/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(categoria),
+    data,
   });
 };
 
-export const deleteCategoria = async (id: number): Promise<void> => {
-  return apiFetch(`/categorias/${id}`, {
+export const deleteTipoHabitacion = async (id: number): Promise<void> => {
+  return apiFetch(`/api/recepcion/tipos-habitacion/${id}`, {
     method: 'DELETE',
   });
 };

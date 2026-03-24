@@ -1,31 +1,29 @@
 import { apiFetch } from './client';
-import type { Alquiler } from '../types';
+import type { AlquilerResponseDTO, CheckInRequestDTO } from '../types';
 
-export async function getAlquileres(): Promise<Alquiler[]> {
-  return apiFetch('/api/alquileres');
+export async function getAlquileresActivos(): Promise<AlquilerResponseDTO[]> {
+  return apiFetch('/api/recepcion/alquiler/activos');
 }
 
-export async function postAlquiler(alquiler: Omit<Alquiler, 'id'>): Promise<Alquiler> {
-  return apiFetch('/api/alquileres', {
+export async function getAlquileresHistorial(): Promise<AlquilerResponseDTO[]> {
+  return apiFetch('/api/recepcion/alquiler/historial');
+}
+
+export async function getAlquiler(id: number): Promise<AlquilerResponseDTO> {
+  return apiFetch(`/api/recepcion/alquiler/${id}`);
+}
+
+export async function postCheckIn(data: CheckInRequestDTO): Promise<AlquilerResponseDTO> {
+  return apiFetch('/api/recepcion/alquiler/check-in', {
     method: 'POST',
-    data: alquiler,
+    data,
   });
 }
 
-export async function putAlquiler(id: number, alquiler: Omit<Alquiler, 'id'>): Promise<Alquiler> {
-  return apiFetch(`/api/alquileres/${id}`, {
-    method: 'PUT',
-    data: alquiler,
+export async function postCheckOut(id: number, metodoPago: string): Promise<AlquilerResponseDTO> {
+  return apiFetch(`/api/recepcion/alquiler/${id}/check-out`, {
+    method: 'POST',
+    params: { metodoPago },
   });
-}
-
-export async function deleteAlquiler(id: number) {
-  return apiFetch(`/api/alquileres/${id}`, {
-    method: 'DELETE',
-  });
-}
-
-export async function getAlquilerActivos(): Promise<Alquiler[]> {
-  return apiFetch('/api/alquileres/activos');
 }
 

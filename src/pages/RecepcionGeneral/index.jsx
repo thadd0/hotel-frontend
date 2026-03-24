@@ -1,30 +1,49 @@
 import { useState } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { ESTADOS } from '../../data/initialData';
-import { Badge, Card, RSelect, SearchInput, Popover } from '../../components/UI/index.jsx';
+import { Badge, Card, RSelect, SearchInput, Popover, Modal, Btn, Field, useToast } from '../../components/UI/index.jsx';
 import CheckInModal from '../../components/CheckInModal.jsx';
 import { BedDouble, Layers, ChevronDown, LogIn, LogOut } from 'lucide-react';
 
 const ESTADO_KEYS = Object.keys(ESTADOS);
 
 export default function RecepcionGeneral() {
-  const { habitaciones, categorias, ubicaciones, tarifas, cambiarEstado, checkIn, checkOut } = useHotel();
-  const [fUbicacion, setFUbicacion] = useState('');
+  const { habitaciones, tiposHabitacion, pisos, tarifas, cambiarEstado, checkIn, checkOut, alquileres } = useHotel();
+  const addToast = useToast();
+  const [fPiso,      setFPiso]      = useState('');
   const [fEstado,    setFEstado]    = useState('');
   const [busqueda,   setBusqueda]   = useState('');
   const [checkInOpen, setCheckInOpen] = useState(false);
+  const [checkOutTarget, setCheckOutTarget] = useState(null); // alquiler to check-out
+  const [checkOutMetodo, setCheckOutMetodo] = useState('EFECTIVO');
 
   const filtered = habitaciones.filter(h => {
-    const mU = !fUbicacion || String(h.ubicacionId) === fUbicacion;
-    const mE = !fEstado    || h.estado === fEstado;
-    const mB = !busqueda   || h.numero.toLowerCase().includes(busqueda.toLowerCase());
-    return mU && mE && mB;
+    const mP = !fPiso   || String(h.piso) === fPiso;
+    const mE = !fEstado || h.estado === fEstado;
+    const mB = !busqueda || h.numero.toLowerCase().includes(busqueda.toLowerCase());
+    return mP && mE && mB;
   });
 
   const habitacionesDisponibles = habitaciones.filter(h => h.estado === 'DISPONIBLE');
 
-  const handleCheckIn = (persons, roomSelections, nights, startDate, endDate) => {
-    checkIn(persons, roomSelections, nights, startDate, endDate);
+  const handleCheckIn = async (checkInData) => {
+    try {
+      await checkIn(checkInData);
+      addToast('Check-in realizado con éxito', 'success');
+    } catch {
+      addToast('Error al registrar el check-in', 'error');
+    }
+  };
+
+  const handleCheckOut = async () => {
+    if (!checkOutTarget) return;
+    try {
+      await checkOut(checkOutTarget.id, checkOutMetodo);
+      addToast('Check-out realizado con éxito', 'success');
+      setCheckOutTarget(null);
+    } catch {
+      addToast('Error al registrar el check-out', 'error');
+    }
   };
 
   const stats = ESTADO_KEYS.reduce((acc, k) => {
@@ -62,10 +81,10 @@ export default function RecepcionGeneral() {
       <Card padding="12px 16px" style={{ marginBottom:20 }}>
         <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
           <RSelect
-            value={fUbicacion}
-            onValueChange={setFUbicacion}
-            placeholder="Todas las ubicaciones"
-            options={ubicaciones.map(u=>({ value:String(u.id), label:u.nombre }))}
+            value={fPiso}
+            onValueChange={setFPiso}
+            placeholder="Todos los pisos"
+            options={pisos.map(p=>({ value:String(p), label:`Piso ${p}` }))}
           />
           <RSelect
             value={fEstado}
@@ -105,10 +124,9 @@ export default function RecepcionGeneral() {
       ) : (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(210px,1fr))', gap:14 }}>
           {filtered.map(hab => {
-            const est   = ESTADOS[hab.estado];
-            const cat   = categorias.find(c  => c.id  === hab.categoriaId);
-            const ubic  = ubicaciones.find(u  => u.id  === hab.ubicacionId);
-            const hTars = tarifas.filter(t => hab.tarifaIds?.includes(t.id));
+            const est  = ESTADOS[hab.estado] || ESTADOS.DISPONIBLE;
+            // Find active alquiler for this room
+            const activeAlquiler = alquileres.find(a => a.numeroHabitacion === hab.numero && a.estadoAlquiler === 'ACTIVO');
 
             return (
               <div key={hab.id} style={{
@@ -127,10 +145,10 @@ export default function RecepcionGeneral() {
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
                     <Badge label={est.label} color={est.color} bg={est.bg} border={est.border} dot={est.dot} />
                     <div style={{ display:'flex', gap:6 }}>
-                      {hab.estado === 'OCUPADO' && (
+                      {hab.estado === 'OCUPADA' && activeAlquiler && (
                         <button
                           title="Hacer checkout"
-                          onClick={() => checkOut(hab.id)}
+                          onClick={() => { setCheckOutTarget(activeAlquiler); setCheckOutMetodo('EFECTIVO'); }}
                           style={{
                             width:24, height:24, borderRadius:'var(--r-sm)',
                             background:est.bg, border:`1px solid ${est.border}`,
@@ -203,41 +221,21 @@ export default function RecepcionGeneral() {
 
                   {/* Información */}
                   <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:500, marginBottom:6, textTransform:'uppercase', letterSpacing:'.3px' }}>
-                    {cat?.nombre}
+                    {hab.tipoHabitacion?.nombre}
                   </div>
-                  {ubic && (
-                    <div style={{ fontSize:10.5, color:'var(--text-xmuted)' }}>{ubic.nombre}</div>
-                  )}
+                  <div style={{ fontSize:10.5, color:'var(--text-xmuted)' }}>Piso {hab.piso}</div>
 
-                  {hTars.length > 0 && (
-                    <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:8 }}>
-                      {hTars.map(t=>(
-                        <span key={t.id} style={{
-                          background:'var(--accent-light)', color:'var(--accent-dark)',
-                          fontSize:10, fontWeight:700, padding:'2px 7px',
-                          borderRadius:'var(--r-full)', border:'1px solid var(--accent-mid)',
-                        }}>
-                          S/ {t.nombre}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Huéspedes */}
-                  {hab.persons && hab.persons.length > 0 && (
+                  {/* Huésped activo */}
+                  {activeAlquiler && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${est.border}` }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.3px' }}>
-                        Huéspedes
+                        Huésped
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {hab.persons.map((p, idx) => (
-                          <div key={idx} style={{ fontSize: 10.5, color: 'var(--text)' }}>
-                            <div style={{ fontWeight: 600 }}>{p.nombre}</div>
-                            <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>
-                              {p.tipoDocumento}: {p.documento}
-                            </div>
-                          </div>
-                        ))}
+                      <div style={{ fontSize: 11, color: 'var(--text)', fontWeight: 600 }}>
+                        {activeAlquiler.nombreCliente}
+                      </div>
+                      <div style={{ fontSize: 9.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Pendiente: S/ {activeAlquiler.pagoPendiente?.toFixed(2) || '0.00'}
                       </div>
                     </div>
                   )}
@@ -253,10 +251,45 @@ export default function RecepcionGeneral() {
         onOpenChange={setCheckInOpen}
         habitacionesDisponibles={habitacionesDisponibles}
         tarifas={tarifas}
-        categorias={categorias}
-        ubicaciones={ubicaciones}
+        tiposHabitacion={tiposHabitacion}
+        pisos={pisos}
         onCheckIn={handleCheckIn}
       />
+
+      {/* Check-out modal — POST /{id}/check-out?metodoPago=X */}
+      <Modal open={!!checkOutTarget} onOpenChange={(open) => !open && setCheckOutTarget(null)} title="Confirmar Check-out" width={400}>
+        {checkOutTarget && (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 14, marginBottom: 8 }}>
+                <strong>Habitación:</strong> {checkOutTarget.numeroHabitacion} — <strong>{checkOutTarget.nombreCliente}</strong>
+              </div>
+              <div style={{ fontSize: 14, marginBottom: 4 }}>
+                <strong>Pendiente:</strong>{' '}
+                <span style={{ color: checkOutTarget.pagoPendiente > 0 ? 'var(--red, #e53935)' : 'var(--green, #43a047)', fontWeight: 700 }}>
+                  S/ {parseFloat(checkOutTarget.pagoPendiente).toFixed(2)}
+                </span>
+              </div>
+            </div>
+            <Field label="Método de pago">
+              <select value={checkOutMetodo} onChange={(e) => setCheckOutMetodo(e.target.value)} style={{
+                width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md, 8px)',
+                border: '1px solid var(--border)', fontSize: 14,
+                color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
+              }}>
+                <option value="EFECTIVO">Efectivo</option>
+                <option value="TARJETA">Tarjeta</option>
+                <option value="YAPE">Yape</option>
+                <option value="TRANSFERENCIA">Transferencia</option>
+              </select>
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <Btn variant="ghost" onClick={() => setCheckOutTarget(null)}>Cancelar</Btn>
+              <Btn variant="primary" icon={<LogOut size={14} />} onClick={handleCheckOut}>Confirmar Check-out</Btn>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

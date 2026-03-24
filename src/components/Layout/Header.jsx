@@ -1,52 +1,47 @@
 import { useLocation } from 'react-router-dom';
 import { useHotel } from '../../context/HotelContext';
-import { Btn, RSelect } from '../UI/index.jsx';
-import { ChevronDown, Check, Bell, LogOut, User } from 'lucide-react';
+import { Btn } from '../UI/index.jsx';
+import { Bell, LogOut, Menu } from 'lucide-react';
 
 const TITLES = {
-  '/':             { title:'Vista General',       sub:'Recepción y estado de habitaciones' },
-  '/habitaciones': { title:'Habitaciones',         sub:'Gestión y registro de cuartos' },
-  '/categorias':   { title:'Categorías',           sub:'Tipos de habitación' },
-  '/ubicaciones':  { title:'Ubicaciones',          sub:'Pisos y zonas del hotel' },
-  '/tarifas':      { title:'Tarifas',              sub:'Precios y tarifas por habitación' },
-  '/sucursales':   { title:'Sucursales',           sub:'Gestión de oficinas y sedes' },
+  '/':                 { title:'Vista General',         sub:'Recepción y estado de habitaciones' },
+  '/habitaciones':     { title:'Habitaciones',           sub:'Gestión y registro de cuartos' },
+  '/configuracion':    { title:'Configuración',          sub:'Tipos de habitación y alquiler' },
+  '/tarifas':          { title:'Tarifas',                sub:'Precios por tipo de habitación y alquiler' },
+  '/empresa':          { title:'Empresas',               sub:'Empresas registradas' },
+  '/caja':             { title:'Caja',                   sub:'Ingresos y egresos' },
+  '/clientes':         { title:'Clientes',               sub:'Lista de clientes registrados' },
+
+  '/alquileres':       { title:'Alquileres',             sub:'Rentas activas e historial' },
+  '/usuarios':         { title:'Usuarios',               sub:'Gestión de recepcionistas' },
+  '/perfil':           { title:'Mi Perfil',              sub:'Datos de tu cuenta' },
 };
 
-export default function Header() {
+export default function Header({ onMenuToggle }) {
   const { pathname } = useLocation();
-  const { sucursales, sucursalActiva, setSucursalActiva, logout, userRole, toggleRole } = useHotel();
+  const { logout, userRole } = useHotel();
   const info = TITLES[pathname] ?? { title:'Hotel Admin', sub:'' };
 
   return (
-    <header style={s.root}>
+    <header className="app-header">
       <div style={s.left}>
+        <button className="menu-toggle" onClick={onMenuToggle} style={{
+          border: 'none', background: 'none', cursor: 'pointer', padding: 6,
+          color: 'var(--text-muted)', display: 'none',
+        }}>
+          <Menu size={20} />
+        </button>
         <div>
           <h1 style={s.title}>{info.title}</h1>
           <p style={s.sub}>{info.sub}</p>
         </div>
       </div>
 
-      <div style={s.right}>
-        {/* Role Toggle */}
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <RSelect
-            value={userRole}
-            onValueChange={toggleRole}
-            placeholder="Rol"
-            options={[
-              { value: 'admin', label: 'Administrador' },
-              { value: 'recepcion', label: 'Recepcionista' }
-            ]}
-            triggerStyle={{
-              padding: '4px 8px',
-              fontSize: 12,
-              minWidth: 120,
-              borderRadius: 'var(--r-sm)',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-            }}
-          />
-        </div>
+      <div className="header-actions" style={s.right}>
+        {/* Rol badge */}
+        <span style={s.roleBadge}>
+          {userRole === 'admin' ? 'Administrador' : 'Recepcionista'}
+        </span>
 
         {/* Campana */}
         <button style={s.iconBtn}>
@@ -69,6 +64,7 @@ const s = {
     display:'flex', alignItems:'center',
     justifyContent:'space-between', padding:'0 24px',
     position:'sticky', top:0, zIndex:100,
+    gap: 8,
   },
   left: { display:'flex', alignItems:'center', gap:12 },
   title: { fontSize:16, fontWeight:700, color:'var(--text)', letterSpacing:'-0.3px', lineHeight:1.2 },
@@ -80,6 +76,16 @@ const s = {
     border:'1px solid var(--accent-mid)', background:'var(--accent-light)',
     fontSize:'12.5px', color:'var(--accent-dark)', fontFamily:'inherit',
     fontWeight:600, outline:'none', minWidth:150,
+  },
+  roleBadge: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--text-muted)',
+    padding: '4px 10px',
+    borderRadius: 'var(--r-sm)',
+    border: '1px solid var(--border)',
+    background: 'var(--surface)',
+    userSelect: 'none',
   },
   iconBtn: {
     width:32, height:32, borderRadius:'var(--r-md)',
