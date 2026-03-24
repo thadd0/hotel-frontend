@@ -21,6 +21,7 @@ export default function Alquileres() {
   const [page, setPage] = useState(1);
   const [checkOutModal, setCheckOutModal] = useState(null); // alquiler object or null
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   // Checkout detail state
   const [checkoutCuentaItems, setCheckoutCuentaItems] = useState([]);
@@ -30,7 +31,7 @@ export default function Alquileres() {
   const [cuentaModal, setCuentaModal] = useState(null); // alquiler object or null
   const [cuentaItems, setCuentaItems] = useState([]); // CuentaAlquilerDTO[]
   const [newConsumo, setNewConsumo] = useState({ descripcion: '', precioUnit: '', cantidad: 1 });
-  const [editConsumoId, setEditConsumoId] = useState(null); // id of consumo being edited
+  const [editPopover, setEditPopover] = useState(null); // { id, descripcion, precioUnit, cantidad }
 
   const filtered = useMemo(() =>
     alquileres.filter(a => a.estadoAlquiler === tab),
@@ -55,14 +56,18 @@ export default function Alquileres() {
   };
 
   const handleCheckOut = async () => {
-    if (!checkOutModal) return;
+    if (!checkOutModal || isCheckingOut) return;
+    const currentCheckout = checkOutModal;
+    setIsCheckingOut(true);
     try {
-      await checkOut(checkOutModal.id, metodoPago);
+      await checkOut(currentCheckout.id, metodoPago);
       addToast('Check-out realizado con éxito', 'success');
-      setCheckOutModal(null);
-      setCheckoutCuentaItems([]);
     } catch {
       addToast('Error al realizar check-out', 'error');
+    } finally {
+      setIsCheckingOut(false);
+      setCheckOutModal(null);
+      setCheckoutCuentaItems([]);
     }
   };
 
@@ -70,7 +75,7 @@ export default function Alquileres() {
   const openCuenta = async (alquiler) => {
     setCuentaModal(alquiler);
     setNewConsumo({ descripcion: '', precioUnit: '', cantidad: 1 });
-    setEditConsumoId(null);
+    setEditPopover(null);
     try {
       const data = await getCuentasByAlquiler(alquiler.id);
       setCuentaItems(data);
@@ -85,60 +90,81 @@ export default function Alquileres() {
     const precio = parseFloat(precioUnit);
     const payload = { descripcion: descripcion.trim(), precioUnit: precio, cantidad: Number(cantidad), estado: 'PENDIENTE' };
 
-    if (editConsumoId) {
-      // Update existing consumo
-      try {
-        const updated = await putCuenta(cuentaModal.id, editConsumoId, payload);
-        setCuentaItems(prev => prev.map(c => c.id === editConsumoId ? updated : c));
-        refreshAlquiler(cuentaModal.id);
-      } catch {
-        setCuentaItems(prev => prev.map(c => c.id === editConsumoId ? { ...c, ...payload, subTotal: precio * Number(cantidad) } : c));
-      }
-      addToast('Consumo actualizado', 'success');
-      setEditConsumoId(null);
-    } else {
-      // Add new consumo
-      try {
-        const saved = await postCuenta(cuentaModal.id, payload);
-        setCuentaItems(prev => [...prev, saved]);
-        refreshAlquiler(cuentaModal.id);
-        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: parseFloat(prev.pagoPendiente) + saved.subTotal } : prev);
-      } catch {
-        const item = {
-          id: Date.now(),
-          ...payload,
-          subTotal: precio * Number(cantidad),
-          alquilerId: cuentaModal.id,
-        };
-        setCuentaItems(prev => [...prev, item]);
-        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: parseFloat(prev.pagoPendiente) + item.subTotal } : prev);
-      }
-      addToast('Consumo agregado', 'success');
+    // Add new consumo
+    try {
+      const saved = await postCuenta(cuentaModal.id, payload);
+      setCuentaItems(prev => [...prev, saved]);
+      refreshAlquiler(cuentaModal.id);
+      setCuentaModal(prev => prev ? { ...prev, pagoPendiente: parseFloat(prev.pagoPendiente) + saved.subTotal } : prev);
+    } catch {
+      const item = {
+        id: Date.now(),
+        ...payload,
+        subTotal: precio * Number(cantidad),
+        alquilerId: cuentaModal.id,
+      };
+      setCuentaItems(prev => [...prev, item]);
+      setCuentaModal(prev => prev ? { ...prev, pagoPendiente: parseFloat(prev.pagoPendiente) + item.subTotal } : prev);
     }
+    addToast('Consumo agregado', 'success');
     setNewConsumo({ descripcion: '', precioUnit: '', cantidad: 1 });
+  };
+
+  const saveEditConsumo = async () => {
+    if (!editPopover) return;
+    const { id, descripcion, precioUnit, cantidad } = editPopover;
+    if (!descripcion.trim() || !precioUnit || Number(cantidad) < 1) return;
+
+    const precio = parseFloat(precioUnit);
+    const payload = {
+      descripcion: descripcion.trim(),
+      precioUnit: precio,
+      cantidad: Number(cantidad),
+      estado: 'PENDIENTE',
+    };
+
+    try {
+      const updated = await putCuenta(cuentaModal.id, id, payload);
+      setCuentaItems(prev => prev.map(c => c.id === id ? updated : c));
+      refreshAlquiler(cuentaModal.id);
+    } catch {
+      setCuentaItems(prev => prev.map(c => c.id === id ? { ...c, ...payload, subTotal: precio * Number(cantidad) } : c));
+    }
+
+    setEditPopover(null);
+    addToast('Consumo actualizado', 'success');
   };
 
   const removeConsumo = async (id) => {
-    const item = cuentaItems.find(c => c.id === id);
+    if (!cuentaModal?.id) return;
     try {
       await deleteCuenta(cuentaModal.id, id);
-    } catch { /* fallback: just remove locally */ }
-    setCuentaItems(prev => prev.filter(c => c.id !== id));
-    if (item) {
-      refreshAlquiler(cuentaModal.id);
-      setCuentaModal(prev => prev ? { ...prev, pagoPendiente: Math.max(0, parseFloat(prev.pagoPendiente) - item.subTotal) } : prev);
+      const refreshedItems = await getCuentasByAlquiler(cuentaModal.id);
+      setCuentaItems(refreshedItems);
+
+      const updatedAlquiler = await refreshAlquiler(cuentaModal.id);
+      if (updatedAlquiler) {
+        setCuentaModal((prev) => (prev ? { ...prev, pagoPendiente: updatedAlquiler.pagoPendiente } : prev));
+      }
+
+      if (editPopover?.id === id) setEditPopover(null);
+      addToast('Consumo eliminado', 'info');
+    } catch (error) {
+      const backendMessage = error?.response?.data?.message;
+      addToast(backendMessage || 'No se pudo eliminar el consumo', 'error');
     }
-    addToast('Consumo eliminado', 'info');
   };
 
   const startEditConsumo = (c) => {
-    setEditConsumoId(c.id);
-    setNewConsumo({ descripcion: c.descripcion, precioUnit: String(c.precioUnit), cantidad: c.cantidad });
-  };
-
-  const cancelEdit = () => {
-    setEditConsumoId(null);
-    setNewConsumo({ descripcion: '', precioUnit: '', cantidad: 1 });
+    setEditPopover((prev) => {
+      if (prev?.id === c.id) return null;
+      return {
+        id: c.id,
+        descripcion: c.descripcion,
+        precioUnit: String(c.precioUnit),
+        cantidad: c.cantidad,
+      };
+    });
   };
 
   const cuentaTotal = cuentaItems.reduce((sum, c) => sum + c.subTotal, 0);
@@ -283,7 +309,9 @@ export default function Alquileres() {
             </Field>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <Btn variant="ghost" onClick={() => { setCheckOutModal(null); setCheckoutCuentaItems([]); }}>Cancelar</Btn>
-              <Btn onClick={handleCheckOut}>Confirmar Check-out</Btn>
+              <Btn onClick={handleCheckOut} disabled={isCheckingOut}>
+                {isCheckingOut ? 'Procesando...' : 'Confirmar Check-out'}
+              </Btn>
             </div>
           </>
         )}
@@ -329,7 +357,7 @@ export default function Alquileres() {
                             {c.estado}
                           </span>
                         </td>
-                        <td style={tdCuenta}>
+                        <td style={{ ...tdCuenta, position: 'relative' }}>
                           {c.estado === 'PENDIENTE' && cuentaModal?.estadoAlquiler === 'ACTIVO' && (
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button onClick={() => startEditConsumo(c)} title="Editar" style={{
@@ -347,6 +375,54 @@ export default function Alquileres() {
                               }}>
                                 <Trash2 size={14} />
                               </button>
+                            </div>
+                          )}
+                          {editPopover?.id === c.id && (
+                            <div style={{
+                              position: 'absolute',
+                              right: 0,
+                              bottom: 'calc(100% + 6px)',
+                              width: 280,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--r-md, 8px)',
+                              boxShadow: 'var(--shadow-md, 0 8px 20px rgba(0,0,0,.12))',
+                              padding: 10,
+                              zIndex: 20,
+                            }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                                Editar consumo
+                              </div>
+                              <div style={{ display: 'grid', gap: 6 }}>
+                                <input
+                                  style={{ ...inputStyle, fontSize: 12, padding: '6px 8px' }}
+                                  value={editPopover.descripcion}
+                                  onChange={(e) => setEditPopover(p => ({ ...p, descripcion: e.target.value }))}
+                                  placeholder="Descripción"
+                                />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 84px', gap: 6 }}>
+                                  <input
+                                    style={{ ...inputStyle, fontSize: 12, padding: '6px 8px' }}
+                                    type="number"
+                                    min="0"
+                                    step="0.5"
+                                    value={editPopover.precioUnit}
+                                    onChange={(e) => setEditPopover(p => ({ ...p, precioUnit: e.target.value }))}
+                                    placeholder="P. Unit"
+                                  />
+                                  <input
+                                    style={{ ...inputStyle, fontSize: 12, padding: '6px 8px' }}
+                                    type="number"
+                                    min="1"
+                                    value={editPopover.cantidad}
+                                    onChange={(e) => setEditPopover(p => ({ ...p, cantidad: e.target.value }))}
+                                    placeholder="Cant."
+                                  />
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 2 }}>
+                                  <Btn size="xs" onClick={saveEditConsumo}>Guardar</Btn>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </td>
@@ -368,7 +444,7 @@ export default function Alquileres() {
             {cuentaModal.estadoAlquiler === 'ACTIVO' && (
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-                  {editConsumoId ? 'Editar consumo' : 'Agregar consumo'}
+                  Agregar consumo
                 </div>
                 <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.7fr auto', gap: 8, alignItems: 'end' }}>
                   <Field label="Descripción">
@@ -386,19 +462,14 @@ export default function Alquileres() {
                       onChange={(e) => setNewConsumo(p => ({ ...p, cantidad: e.target.value }))}
                       placeholder="1" />
                   </Field>
-                  <Btn onClick={addConsumo} style={{ marginBottom: 1 }} icon={<Plus size={14} />}>
-                    {editConsumoId ? 'Guardar' : 'Agregar'}
-                  </Btn>
-                  {editConsumoId && (
-                    <Btn variant="ghost" onClick={cancelEdit} style={{ marginBottom: 1 }}>Cancelar</Btn>
-                  )}
+                  <div style={{ marginBottom: 16 }}>
+                    <Btn onClick={addConsumo} icon={<Plus size={14} />}>
+                      Agregar
+                    </Btn>
+                  </div>
                 </div>
               </div>
             )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-              <Btn variant="ghost" onClick={() => setCuentaModal(null)}>Cerrar</Btn>
-            </div>
           </>
         )}
       </Modal>

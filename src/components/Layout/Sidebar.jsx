@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BedDouble, DollarSign, Hotel, Users, Building2, Settings, ClipboardList, UserCog, User, X } from 'lucide-react';
+import { LayoutDashboard, BedDouble, DollarSign, Hotel, Users, Building2, Settings, ClipboardList, X } from 'lucide-react';
 import { useHotel } from '../../context/HotelContext';
 
 export default function Sidebar({ open, onClose }) {
@@ -15,8 +15,6 @@ export default function Sidebar({ open, onClose }) {
     { to:'/tarifas',           icon:DollarSign,      label:'Tarifas',           sub:'Precios' },
     { to:'/empresa',           icon:Building2,       label:'Empresas',          sub:'Empresas registradas' },
     { to:'/clientes',          icon:Users,           label:'Clientes',          sub:'Lista completa' },
-    { to:'/usuarios',          icon:UserCog,         label:'Usuarios',          sub:'Recepcionistas' },
-    { to:'/perfil',            icon:User,            label:'Mi Perfil',         sub:'Datos personales' },
   ];
 
   const NAV_RECEPCION = [
@@ -25,7 +23,6 @@ export default function Sidebar({ open, onClose }) {
     { to:'/alquileres',   icon:ClipboardList,   label:'Alquileres',   sub:'Rentas activas' },
     { to:'/habitaciones', icon:BedDouble,       label:'Habitaciones', sub:'Estado cuartos' },
     { to:'/clientes',     icon:Users,           label:'Clientes',     sub:'Lista disponible' },
-    { to:'/perfil',       icon:User,            label:'Mi Perfil',    sub:'Datos personales' },
   ];
 
   const isActive = (to) => to === '/' ? pathname === '/' : pathname.startsWith(to);

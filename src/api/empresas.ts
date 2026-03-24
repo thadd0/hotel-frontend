@@ -3,7 +3,11 @@ import type { EmpresaDTO } from '../types';
 
 // "Sucursales" repurposed → Empresas endpoints (the real backend entity)
 export const getEmpresas = async (): Promise<EmpresaDTO[]> => {
-  return apiFetch('/api/admin/empresas');
+  try {
+    return await apiFetch('/api/admin/empresas');
+  } catch {
+    return apiFetch('/api/recepcion/empresas');
+  }
 };
 
 export const getEmpresa = async (id: number): Promise<EmpresaDTO> => {

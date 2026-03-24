@@ -1,7 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useHotel } from '../../context/HotelContext';
-import { Btn } from '../UI/index.jsx';
-import { Bell, LogOut, Menu } from 'lucide-react';
+import { Menu, UserCircle2 } from 'lucide-react';
 
 const TITLES = {
   '/':                 { title:'Vista General',         sub:'Recepción y estado de habitaciones' },
@@ -17,9 +16,9 @@ const TITLES = {
   '/perfil':           { title:'Mi Perfil',              sub:'Datos de tu cuenta' },
 };
 
-export default function Header({ onMenuToggle }) {
+export default function Header({ onMenuToggle, onUserToggle }) {
   const { pathname } = useLocation();
-  const { logout, userRole } = useHotel();
+  const { userRole } = useHotel();
   const info = TITLES[pathname] ?? { title:'Hotel Admin', sub:'' };
 
   return (
@@ -38,20 +37,18 @@ export default function Header({ onMenuToggle }) {
       </div>
 
       <div className="header-actions" style={s.right}>
-        {/* Rol badge */}
         <span style={s.roleBadge}>
           {userRole === 'admin' ? 'Administrador' : 'Recepcionista'}
         </span>
-
-        {/* Campana */}
-        <button style={s.iconBtn}>
-          <Bell size={16} color="var(--text-muted)" />
+        <button
+          type="button"
+          style={s.iconBtn}
+          onClick={onUserToggle}
+          title="Abrir panel de usuario"
+          aria-label="Abrir panel de usuario"
+        >
+          <UserCircle2 size={18} color="var(--text-muted)" />
         </button>
-
-        {/* Cerrar Sesión */}
-        <Btn variant="ghost" size="sm" icon={<LogOut size={14} />} onClick={logout}>
-          Cerrar Sesión
-        </Btn>
       </div>
     </header>
   );

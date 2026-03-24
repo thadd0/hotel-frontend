@@ -12,9 +12,46 @@ const inputStyle = {
   color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
 };
 
+const amountInputWrapStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr',
+  alignItems: 'center',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--r-md, 8px)',
+  background: 'var(--surface)',
+};
+
+const amountPrefixStyle = {
+  height: '100%',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0 12px',
+  fontSize: 13,
+  fontWeight: 700,
+  color: 'var(--accent-dark)',
+  background: 'var(--bg)',
+  borderRight: '1px solid var(--border)',
+  borderTopLeftRadius: 'var(--r-md, 8px)',
+  borderBottomLeftRadius: 'var(--r-md, 8px)',
+};
+
+const amountInputStyle = {
+  width: '100%',
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  color: 'var(--text)',
+  fontFamily: 'inherit',
+  fontSize: 22,
+  fontWeight: 700,
+  textAlign: 'right',
+  padding: '8px 12px',
+};
+
 export default function Caja() {
   const { userRole } = useHotel();
-  const { addToast } = useToast();
+  const addToast = useToast();
   const isAdmin = userRole === 'admin';
 
   const [page, setPage] = useState(1);
@@ -80,6 +117,21 @@ export default function Caja() {
     setForm({ monto: '', concepto: '', metodoPago: 'EFECTIVO' });
     setErrors({});
     setModalOpen(true);
+  };
+
+  const handleMontoChange = (rawValue) => {
+    const normalized = String(rawValue || '').replace(',', '.');
+    const cleaned = normalized.replace(/[^\d.]/g, '');
+    const parts = cleaned.split('.');
+    const safe = parts.length > 2
+      ? `${parts[0]}.${parts.slice(1).join('')}`
+      : cleaned;
+    const [intPart = '', decPart = ''] = safe.split('.');
+    const hasDecimalPoint = safe.includes('.');
+    const limited = hasDecimalPoint
+      ? `${intPart}.${decPart.slice(0, 2)}`
+      : intPart;
+    setForm((prev) => ({ ...prev, monto: limited }));
   };
 
   const validate = () => {
@@ -197,17 +249,17 @@ export default function Caja() {
       {/* Modal for Egreso / Ingreso Extra  — payload matches GastoRequestDTO */}
       <Modal open={modalOpen} onOpenChange={setModalOpen} title={modalTipo === 'EGRESO' ? 'Registrar Egreso' : 'Ingreso Extra'}>
         <Field label="Monto (S/)" error={errors.monto} required>
-          <input
-            type="number"
-            value={form.monto}
-            onChange={e => setForm({ ...form, monto: e.target.value })}
-            placeholder="0.00"
-            min="0"
-            step="0.01"
-            style={{
-              ...inputStyle, fontSize: 16, textAlign: 'right',
-            }}
-          />
+          <div style={amountInputWrapStyle}>
+            <span style={amountPrefixStyle}>S/</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={form.monto}
+              onChange={e => handleMontoChange(e.target.value)}
+              placeholder="0.00"
+              style={amountInputStyle}
+            />
+          </div>
         </Field>
         <Field label="Concepto" error={errors.concepto} required>
           <input

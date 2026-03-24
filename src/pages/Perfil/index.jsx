@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
 import { useHotel } from '../../context/HotelContext';
 import { Card, Field, Btn, Modal } from '../../components/UI/index.jsx';
 import { User, KeyRound, Pencil } from 'lucide-react';
@@ -10,8 +11,50 @@ const inputStyle = {
   color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
 };
 
+const COUNTRY_DIAL_OPTIONS = getCountries()
+  .map((code) => ({
+    code,
+    dialCode: `+${getCountryCallingCode(code)}`,
+    label: `${code} ${`+${getCountryCallingCode(code)}`}`,
+  }))
+  .sort((a, b) => a.code.localeCompare(b.code));
+
+function parseIntlPhone(rawPhone) {
+  const raw = String(rawPhone || '').trim();
+  const match = raw.match(/^(\+\d{1,4})\s*(.*)$/);
+  if (!match) {
+    return { countryCode: 'PE', number: raw };
+  }
+
+  const dialCode = match[1];
+  const number = match[2] || '';
+  const found = COUNTRY_DIAL_OPTIONS.find((c) => c.dialCode === dialCode);
+  return {
+    countryCode: found?.code || 'PE',
+    number,
+  };
+}
+
+function buildIntlPhone(countryCode, number) {
+  const clean = String(number || '').trim();
+  if (!clean) return null;
+  const dialCode = COUNTRY_DIAL_OPTIONS.find((c) => c.code === countryCode)?.dialCode || '+51';
+  return `${dialCode} ${clean}`;
+}
+
 export default function Perfil() {
   const { userName, userRole, tiposDocumento } = useHotel();
+  const tiposDocumentoPermitidos = useMemo(() => {
+    const allowed = ['DNI', 'CE', 'PASAPORTE'];
+    const source = Array.isArray(tiposDocumento) && tiposDocumento.length
+      ? tiposDocumento
+      : [
+          { id: 1, nombre: 'DNI' },
+          { id: 2, nombre: 'CE' },
+          { id: 3, nombre: 'PASAPORTE' },
+        ];
+    return source.filter((td) => allowed.includes(td?.nombre));
+  }, [tiposDocumento]);
 
   // Mock profile data aligned to UsuarioDTO
   const [perfil, setPerfil] = useState({
@@ -55,11 +98,13 @@ export default function Perfil() {
   const [passErrors, setPassErrors] = useState({});
 
   const openEditProfile = () => {
+    const parsedPhone = parseIntlPhone(perfil.telefono || '');
     setEditForm({
       nombre: perfil.nombre,
-      telefono: perfil.telefono || '',
+      telefono: parsedPhone.number,
+      telefonoCountry: parsedPhone.countryCode,
       numDocumento: perfil.numDocumento,
-      tipoDocumento: perfil.tipoDocumento?.nombre || '',
+      tipoDocumento: perfil.tipoDocumento?.nombre || tiposDocumentoPermitidos[0]?.nombre || '',
     });
     setEditErrors({});
     setEditOpen(true);
@@ -68,13 +113,15 @@ export default function Perfil() {
   const handleEditSubmit = useCallback(async () => {
     const e = {};
     if (!editForm.nombre?.trim()) e.nombre = 'Nombre requerido';
+    if (!editForm.tipoDocumento) e.tipoDocumento = 'Tipo documento requerido';
     setEditErrors(e);
     if (Object.keys(e).length) return;
 
     // ActualizarPerfilRequestDTO: {nombre, telefono, numDocumento, tipoDocumento}
+    const telefonoCompleto = buildIntlPhone(editForm.telefonoCountry, editForm.telefono);
     const payload = {
       nombre: editForm.nombre,
-      telefono: editForm.telefono || null,
+      telefono: telefonoCompleto,
       numDocumento: editForm.numDocumento,
       tipoDocumento: editForm.tipoDocumento || null,
     };
@@ -86,7 +133,7 @@ export default function Perfil() {
       setPerfil(p => ({
         ...p,
         nombre: editForm.nombre,
-        telefono: editForm.telefono,
+        telefono: telefonoCompleto,
         numDocumento: editForm.numDocumento,
         tipoDocumento: tid || p.tipoDocumento,
       }));
@@ -160,14 +207,30 @@ export default function Perfil() {
         </Field>
         <Field label="Tipo Documento">
           <select style={inputStyle} value={editForm.tipoDocumento || ''} onChange={e => setEditForm(p => ({ ...p, tipoDocumento: e.target.value }))}>
-            <option value="">Seleccionar...</option>
-            {tiposDocumento.map(td => (
+            <option value="" disabled>Seleccionar...</option>
+            {tiposDocumentoPermitidos.map(td => (
               <option key={td.id} value={td.nombre}>{td.nombre}</option>
             ))}
           </select>
         </Field>
         <Field label="Teléfono">
-          <input style={inputStyle} value={editForm.telefono || ''} onChange={e => setEditForm(p => ({ ...p, telefono: e.target.value }))} placeholder="+51 ..." />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 38%) 1fr', gap: 8 }}>
+            <select
+              style={inputStyle}
+              value={editForm.telefonoCountry || 'PE'}
+              onChange={e => setEditForm(p => ({ ...p, telefonoCountry: e.target.value }))}
+            >
+              {COUNTRY_DIAL_OPTIONS.map((opt) => (
+                <option key={opt.code} value={opt.code}>{opt.label}</option>
+              ))}
+            </select>
+            <input
+              style={inputStyle}
+              value={editForm.telefono || ''}
+              onChange={e => setEditForm(p => ({ ...p, telefono: e.target.value }))}
+              placeholder="Número"
+            />
+          </div>
         </Field>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Btn variant="ghost" onClick={() => setEditOpen(false)}>Cancelar</Btn>

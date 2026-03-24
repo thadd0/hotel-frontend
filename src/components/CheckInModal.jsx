@@ -38,6 +38,21 @@ export default function CheckInModal({
   const canProceedStep3 = !!selectedRoomId;
   const canFinish = canProceedStep3 && canProceedStep2 && canProceedStep1;
 
+  const handleAdelantoChange = (rawValue) => {
+    const normalized = String(rawValue || '').replace(',', '.');
+    const cleaned = normalized.replace(/[^\d.]/g, '');
+    const parts = cleaned.split('.');
+    const safe = parts.length > 2
+      ? `${parts[0]}.${parts.slice(1).join('')}`
+      : cleaned;
+    const [intPart = '', decPart = ''] = safe.split('.');
+    const hasDecimalPoint = safe.includes('.');
+    const limited = hasDecimalPoint
+      ? `${intPart}.${decPart.slice(0, 2)}`
+      : intPart;
+    setAdelanto(limited);
+  };
+
   // Get tarifa for the selected room and tipo alquiler
   const selectedRoom = habitacionesDisponibles.find(r => r.id === selectedRoomId);
   const matchingTarifa = tarifas.find(t =>
@@ -79,6 +94,7 @@ export default function CheckInModal({
     }
 
     onCheckIn(checkInData);
+    resetForm();
     onOpenChange(false);
   };
 
@@ -309,17 +325,20 @@ export default function CheckInModal({
                 </select>
               </Field>
               <Field label="Adelanto (opcional)">
-                <input
-                  type="number"
-                  value={adelanto}
-                  onChange={(e) => setAdelanto(e.target.value)}
-                  placeholder="0.00"
-                  min="0"
-                  max={estimatedPrice || undefined}
-                  style={inputStyle}
-                  onFocus={inputFocus}
-                  onBlur={inputBlur}
-                />
+                <div className="checkin-amount-wrap">
+                  <span className="checkin-amount-prefix">S/</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={adelanto}
+                    onChange={(e) => handleAdelantoChange(e.target.value)}
+                    placeholder="0.00"
+                    style={inputStyle}
+                    className="checkin-amount-input"
+                    onFocus={inputFocus}
+                    onBlur={inputBlur}
+                  />
+                </div>
               </Field>
             </div>
           </div>

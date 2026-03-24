@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
-import { RSelect, SearchInput, Table, Btn, Field, Modal, ConfirmDialog, EmptyState, Pagination, EditBtn, DeleteBtn } from '../../components/UI/index.jsx';
+import { RSelect, SearchInput, Table, Btn, Field, Modal, ConfirmDialog, EmptyState, Pagination, EditBtn, DeleteBtn, useToast } from '../../components/UI/index.jsx';
 import { Plus, DollarSign } from 'lucide-react';
 import styles from './Tarifas.module.css';
 
@@ -8,6 +8,7 @@ const PER_PAGE = 12;
 
 export default function Tarifas() {
   const { tarifas, tiposHabitacion, tiposAlquiler, addTarifa, updateTarifa, deleteTarifa } = useHotel();
+  const addToast = useToast();
 
   const [filterTipoHab, setFilterTipoHab] = useState('');
   const [filterTipoAlq, setFilterTipoAlq] = useState('');
@@ -59,28 +60,71 @@ export default function Tarifas() {
     setModalOpen(true);
   };
 
+  const handlePrecioChange = (rawValue) => {
+    const normalized = String(rawValue || '').replace(',', '.');
+    const cleaned = normalized.replace(/[^\d.]/g, '');
+    const parts = cleaned.split('.');
+    const safe = parts.length > 2
+      ? `${parts[0]}.${parts.slice(1).join('')}`
+      : cleaned;
+    const [intPart = '', decPart = ''] = safe.split('.');
+    const hasDecimalPoint = safe.includes('.');
+    const limited = hasDecimalPoint
+      ? `${intPart}.${decPart.slice(0, 2)}`
+      : intPart;
+    setForm((prev) => ({ ...prev, precio: limited }));
+  };
+
   const validate = () => {
     const errs = {};
-    if (!form.precio || isNaN(form.precio) || Number(form.precio) <= 0) errs.precio = 'Precio válido requerido';
-    if (!form.tipoHabitacionId) errs.tipoHabitacionId = 'Seleccione tipo de habitación';
-    if (!form.tipoAlquilerId) errs.tipoAlquilerId = 'Seleccione tipo de alquiler';
+    const precioNum = Number(form.precio);
+    const habId = Number(form.tipoHabitacionId);
+    const alqId = Number(form.tipoAlquilerId);
+    
+    if (!form.precio || isNaN(precioNum) || precioNum <= 0) errs.precio = 'Precio válido requerido';
+    if (!form.tipoHabitacionId || habId <= 0) errs.tipoHabitacionId = 'Seleccione tipo de habitación válido';
+    if (!form.tipoAlquilerId || alqId <= 0) errs.tipoAlquilerId = 'Seleccione tipo de alquiler válido';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   const handleSubmit = async () => {
     if (!validate()) return;
+
+    const tipoHabId = Number(form.tipoHabitacionId);
+    const tipoAlqId = Number(form.tipoAlquilerId);
+    const precioNum = Number(form.precio);
+    
+    // Double-check IDs are valid numbers before sending
+    if (tipoHabId <= 0 || tipoAlqId <= 0 || precioNum <= 0) {
+      addToast('Verifica que todos los campos estén correctamente seleccionados', 'error');
+      return;
+    }
+
     const payload = {
-      precio: Number(form.precio),
-      tipoHabitacionId: Number(form.tipoHabitacionId),
-      tipoAlquilerId: Number(form.tipoAlquilerId),
+      precio: precioNum,
+      tipoHabitacionId: tipoHabId,
+      tipoAlquilerId: tipoAlqId,
     };
+
+    const alreadyExists = tarifas.some((t) => (
+      t.tipoHabitacion?.id === payload.tipoHabitacionId
+      && t.tipoAlquiler?.id === payload.tipoAlquilerId
+      && t.id !== editId
+    ));
+
+    if (alreadyExists) {
+      addToast('Ya existe una tarifa para esa combinación de habitación y alquiler', 'error');
+      return;
+    }
+
     try {
       editId ? await updateTarifa(editId, payload) : await addTarifa(payload);
       addToast(editId ? 'Tarifa actualizada' : 'Tarifa creada', 'success');
       setModalOpen(false);
-    } catch {
-      addToast('Error al guardar la tarifa', 'error');
+    } catch (error) {
+      const backendMessage = error?.response?.data?.message;
+      addToast(backendMessage || 'Error al guardar la tarifa', 'error');
     }
   };
 
@@ -88,8 +132,9 @@ export default function Tarifas() {
     try {
       await deleteTarifa(confirmId);
       addToast('Tarifa eliminada', 'info');
-    } catch {
-      addToast('Error al eliminar la tarifa', 'error');
+    } catch (error) {
+      const backendMessage = error?.response?.data?.message;
+      addToast(backendMessage || 'Error al eliminar la tarifa', 'error');
     }
     setConfirmId(null);
   };
@@ -197,21 +242,17 @@ export default function Tarifas() {
         </Field>
 
         <Field label="Precio (S/)" error={errors.precio} required>
-          <input
-            type="number"
-            value={form.precio}
-            onChange={e => setForm({ ...form, precio: e.target.value })}
-            placeholder="Ej: 50.00"
-            min="0"
-            step="0.01"
-            style={{
-              width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md)',
-              border: '1px solid var(--border)', fontSize: 16, textAlign: 'right',
-              color: 'var(--text)', background: 'var(--surface)', outline: 'none',
-              transition: 'border-color .15s ease, box-shadow .15s ease',
-              fontFamily: 'inherit',
-            }}
-          />
+          <div className={styles.priceInputWrap}>
+            <span className={styles.pricePrefix}>S/</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={form.precio}
+              onChange={e => handlePrecioChange(e.target.value)}
+              placeholder="0.00"
+              className={styles.priceInput}
+            />
+          </div>
         </Field>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>

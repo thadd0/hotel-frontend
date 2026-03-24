@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, Field, Modal, ConfirmDialog, EmptyState, Pagination, Card, useToast } from '../../components/UI/index.jsx';
 import { UserCog, Plus, KeyRound } from 'lucide-react';
 import { getRecepcionistas, postRecepcionista, putRecepcionista, resetRecepcionistaPassword } from '../../api/usuarios';
+import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
 
 const PER_PAGE = 10;
 
@@ -12,9 +13,51 @@ const inputStyle = {
   color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
 };
 
+const COUNTRY_DIAL_OPTIONS = getCountries()
+  .map((code) => ({
+    code,
+    dialCode: `+${getCountryCallingCode(code)}`,
+    label: `${code} ${`+${getCountryCallingCode(code)}`}`,
+  }))
+  .sort((a, b) => a.code.localeCompare(b.code));
+
+function parseIntlPhone(rawPhone) {
+  const raw = String(rawPhone || '').trim();
+  const match = raw.match(/^(\+\d{1,4})\s*(.*)$/);
+  if (!match) {
+    return { countryCode: 'PE', number: raw };
+  }
+
+  const dialCode = match[1];
+  const number = match[2] || '';
+  const found = COUNTRY_DIAL_OPTIONS.find((c) => c.dialCode === dialCode);
+  return {
+    countryCode: found?.code || 'PE',
+    number,
+  };
+}
+
+function buildIntlPhone(countryCode, number) {
+  const cleanNumber = String(number || '').trim();
+  if (!cleanNumber) return null;
+  const dialCode = COUNTRY_DIAL_OPTIONS.find((c) => c.code === countryCode)?.dialCode || '+51';
+  return `${dialCode} ${cleanNumber}`;
+}
+
 export default function Usuarios() {
   const { tiposDocumento } = useHotel();
-  const { addToast } = useToast();
+  const addToast = useToast();
+  const tiposDocumentoPermitidos = useMemo(() => {
+    const allowed = ['DNI', 'CE', 'PASAPORTE'];
+    const source = Array.isArray(tiposDocumento) && tiposDocumento.length
+      ? tiposDocumento
+      : [
+          { id: 1, nombre: 'DNI' },
+          { id: 2, nombre: 'CE' },
+          { id: 3, nombre: 'PASAPORTE' },
+        ];
+    return source.filter((td) => allowed.includes(td?.nombre));
+  }, [tiposDocumento]);
 
   const [recepcionistas, setRecepcionistas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,16 +96,25 @@ export default function Usuarios() {
 
   const openNew = () => {
     setEditId(null);
-    setForm({ nombre: '', numDocumento: '', password: '', telefono: '', tipoDocumento: '' });
+    setForm({
+      nombre: '',
+      numDocumento: '',
+      password: '',
+      telefono: '',
+      telefonoCountry: 'PE',
+      tipoDocumento: tiposDocumentoPermitidos[0]?.nombre || '',
+    });
     setErrors({});
     setModalOpen(true);
   };
 
   const openEdit = (user) => {
+    const parsedPhone = parseIntlPhone(user.telefono || '');
     setEditId(user.id);
     setForm({
       nombre: user.nombre,
-      telefono: user.telefono || '',
+      telefono: parsedPhone.number,
+      telefonoCountry: parsedPhone.countryCode,
       tipoDocumento: user.tipoDocumento?.nombre || '',
     });
     setErrors({});
@@ -83,9 +135,10 @@ export default function Usuarios() {
 
   const handleSubmit = useCallback(async () => {
     if (!validate()) return;
+    const telefonoCompleto = buildIntlPhone(form.telefonoCountry, form.telefono);
     if (editId) {
       // PUT — ActualizarRecepcionistaRequestDTO: {nombre, telefono, tipoDocumento}
-      const payload = { nombre: form.nombre, telefono: form.telefono || null, tipoDocumento: form.tipoDocumento };
+      const payload = { nombre: form.nombre, telefono: telefonoCompleto, tipoDocumento: form.tipoDocumento };
       try {
         const updated = await putRecepcionista(editId, payload);
         setRecepcionistas(p => p.map(r => r.id === editId ? updated : r));
@@ -96,7 +149,13 @@ export default function Usuarios() {
       }
     } else {
       // POST — CrearRecepcionistaRequestDTO: {nombre, numDocumento, password, telefono?, tipoDocumento}
-      const payload = { nombre: form.nombre, numDocumento: form.numDocumento, password: form.password, telefono: form.telefono || null, tipoDocumento: form.tipoDocumento };
+      const payload = {
+        nombre: form.nombre,
+        numDocumento: form.numDocumento,
+        password: form.password,
+        telefono: telefonoCompleto,
+        tipoDocumento: form.tipoDocumento,
+      };
       try {
         const created = await postRecepcionista(payload);
         setRecepcionistas(p => [...p, created]);
@@ -194,14 +253,30 @@ export default function Usuarios() {
         )}
         <Field label="Tipo Documento" error={errors.tipoDocumento} required>
           <select style={inputStyle} value={form.tipoDocumento || ''} onChange={e => setForm(p => ({ ...p, tipoDocumento: e.target.value }))}>
-            <option value="">Seleccionar...</option>
-            {tiposDocumento.map(td => (
+            <option value="" disabled>Seleccionar...</option>
+            {tiposDocumentoPermitidos.map(td => (
               <option key={td.id} value={td.nombre}>{td.nombre}</option>
             ))}
           </select>
         </Field>
         <Field label="Teléfono">
-          <input style={inputStyle} value={form.telefono || ''} onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))} placeholder="+51 ..." />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 38%) 1fr', gap: 8 }}>
+            <select
+              style={inputStyle}
+              value={form.telefonoCountry || 'PE'}
+              onChange={e => setForm(p => ({ ...p, telefonoCountry: e.target.value }))}
+            >
+              {COUNTRY_DIAL_OPTIONS.map((opt) => (
+                <option key={opt.code} value={opt.code}>{opt.label}</option>
+              ))}
+            </select>
+            <input
+              style={inputStyle}
+              value={form.telefono || ''}
+              onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))}
+              placeholder="Número"
+            />
+          </div>
         </Field>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Btn variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Btn>

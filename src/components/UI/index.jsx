@@ -87,9 +87,9 @@ export function Modal({ open, onOpenChange, title, children, description = 'Oper
               </Dialog.Title>
               <Dialog.Close asChild>
                 <button style={{
-                  width:28, height:28, borderRadius:'var(--r-sm)', border:'1px solid var(--border)',
-                  background:'transparent', display:'flex', alignItems:'center', justifyContent:'center',
-                  color:'var(--text-muted)', cursor:'pointer',
+                  width:30, height:30, borderRadius:'var(--r-sm)', border:'1px solid var(--border-strong)',
+                  background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center',
+                  color:'var(--text)', cursor:'pointer', boxShadow:'var(--shadow-xs)',
                 }}>
                   <X size={14} />
                 </button>

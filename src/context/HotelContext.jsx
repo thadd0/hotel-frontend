@@ -117,11 +117,15 @@ export function HotelProvider({ children }) {
         if (Array.isArray(tiposAlqRes)) setTiposAlquiler(tiposAlqRes);
         if (Array.isArray(empresasRes)) setEmpresas(empresasRes);
         if (Array.isArray(clientesRes)) setClientes(clientesRes);
-        const alquileresMerged = [
-          ...(Array.isArray(activosRes) ? activosRes : []),
-          ...(Array.isArray(historialRes) ? historialRes : []),
-        ];
-        setAlquileres(alquileresMerged);
+        const hasActivos = Array.isArray(activosRes);
+        const hasHistorial = Array.isArray(historialRes);
+        if (hasActivos || hasHistorial) {
+          const alquileresMerged = [
+            ...(hasActivos ? activosRes : []),
+            ...(hasHistorial ? historialRes : []),
+          ];
+          setAlquileres(alquileresMerged);
+        }
         if (Array.isArray(resumenRes)) {
           setMovimientosCaja(resumenRes);
         }
