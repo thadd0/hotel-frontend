@@ -9,6 +9,10 @@ export async function getResumen(desde: string, hasta: string): Promise<ResumenC
   return apiFetch('/api/recepcion/caja/resumen', { params: { desde, hasta } });
 }
 
+export async function getMovimientosRango(desde: string, hasta: string): Promise<MovimientoCajaResponseDTO[]> {
+  return apiFetch('/api/recepcion/caja/movimientos-rango', { params: { desde, hasta } });
+}
+
 export async function postEgreso(data: GastoRequestDTO): Promise<MovimientoCajaResponseDTO> {
   return apiFetch('/api/recepcion/caja/egreso', {
     method: 'POST',

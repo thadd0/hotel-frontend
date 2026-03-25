@@ -14,10 +14,12 @@ export default function CheckInModal({
   pisos,
   onCheckIn,
 }) {
-  const { tiposAlquiler } = useHotel();
+  const { tiposAlquiler, userRole } = useHotel();
+  const isAdmin = userRole === 'admin';
 
   const [step, setStep] = useState(1);
   const [clientes, setClientes] = useState([]);
+  const [representativeId, setRepresentativeId] = useState(null);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [tipoAlquilerId, setTipoAlquilerId] = useState('');
   const [isAddClienteOpen, setIsAddClienteOpen] = useState(false);
@@ -30,10 +32,12 @@ export default function CheckInModal({
   const todayDate = new Date().toISOString().split("T")[0];
 
   // Selected client (first one — backend accepts one client per check-in)
-  const selectedCliente = clientes[0];
+  const selectedCliente = clientes.find((c) => c.id === representativeId) || clientes[0];
+  const clienteEsEmpresa = Boolean(selectedCliente?.empresaNombre || selectedCliente?.empresaId);
+  const canViewTarifa = isAdmin || !clienteEsEmpresa;
 
   // Validaciones
-  const canProceedStep1 = !isAddClienteOpen && clientes.length > 0 && clientes.every(c => c.nombre?.trim());
+  const canProceedStep1 = !isAddClienteOpen && clientes.length > 0 && !!selectedCliente && clientes.every(c => c.nombre?.trim());
   const canProceedStep2 = !!tipoAlquilerId && cantTiempo > 0;
   const canProceedStep3 = !!selectedRoomId;
   const canFinish = canProceedStep3 && canProceedStep2 && canProceedStep1;
@@ -70,6 +74,7 @@ export default function CheckInModal({
   const resetForm = useCallback(() => {
     setStep(1);
     setClientes([]);
+    setRepresentativeId(null);
     setSelectedRoomId(null);
     setTipoAlquilerId('');
     setFilterPiso("");
@@ -139,7 +144,13 @@ export default function CheckInModal({
           </div>
 
           <div className="step-content">
-            <CheckInClienteList clientes={clientes} onClientesChange={setClientes} onAddModeChange={setIsAddClienteOpen} />
+            <CheckInClienteList
+              clientes={clientes}
+              onClientesChange={setClientes}
+              onAddModeChange={setIsAddClienteOpen}
+              representativeId={representativeId}
+              onRepresentativeChange={setRepresentativeId}
+            />
           </div>
 
           <div className="step-footer">
@@ -289,6 +300,12 @@ export default function CheckInModal({
                   </span>
                 </div>
                 <div className="summary-row">
+                  <span className="room-num">Representante</span>
+                  <span className="room-rental" style={{ textAlign: 'right' }}>
+                    {selectedCliente?.nombre || '—'}
+                  </span>
+                </div>
+                <div className="summary-row">
                   <span className="room-num">Habitación</span>
                   <span className="room-rental" style={{ textAlign: 'right' }}>
                     {selectedRoom ? `${selectedRoom.numero} — ${selectedRoom.tipoHabitacion?.nombre}` : '—'}
@@ -303,11 +320,13 @@ export default function CheckInModal({
                 <div className="summary-row">
                   <span className="room-num">Tarifa</span>
                   <span className="room-price">
-                    {matchingTarifa ? `S/ ${matchingTarifa.precio.toFixed(2)} /und` : 'Sin tarifa'}
+                    {canViewTarifa
+                      ? (matchingTarifa ? `S/ ${matchingTarifa.precio.toFixed(2)} /und` : 'Sin tarifa')
+                      : 'Tarifa corporativa (solo admin)'}
                   </span>
                 </div>
               </div>
-              {matchingTarifa && (
+              {matchingTarifa && canViewTarifa && (
                 <div className="summary-total">
                   <strong>Total estimado:</strong>
                   <strong className="total-amount">S/ {estimatedPrice.toFixed(2)}</strong>
@@ -315,32 +334,34 @@ export default function CheckInModal({
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Field label="Método de pago">
-                <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} style={inputStyle}>
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="TARJETA">Tarjeta</option>
-                  <option value="YAPE">Yape</option>
-                  <option value="TRANSFERENCIA">Transferencia</option>
-                </select>
-              </Field>
-              <Field label="Adelanto (opcional)">
-                <div className="checkin-amount-wrap">
-                  <span className="checkin-amount-prefix">S/</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={adelanto}
-                    onChange={(e) => handleAdelantoChange(e.target.value)}
-                    placeholder="0.00"
-                    style={inputStyle}
-                    className="checkin-amount-input"
-                    onFocus={inputFocus}
-                    onBlur={inputBlur}
-                  />
-                </div>
-              </Field>
-            </div>
+            {isAdmin && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field label="Método de pago">
+                  <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} style={inputStyle}>
+                    <option value="EFECTIVO">Efectivo</option>
+                    <option value="TARJETA">Tarjeta</option>
+                    <option value="YAPE">Yape</option>
+                    <option value="TRANSFERENCIA">Transferencia</option>
+                  </select>
+                </Field>
+                <Field label="Adelanto (opcional)">
+                  <div className="checkin-amount-wrap">
+                    <span className="checkin-amount-prefix">S/</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={adelanto}
+                      onChange={(e) => handleAdelantoChange(e.target.value)}
+                      placeholder="0.00"
+                      style={inputStyle}
+                      className="checkin-amount-input"
+                      onFocus={inputFocus}
+                      onBlur={inputBlur}
+                    />
+                  </div>
+                </Field>
+              </div>
+            )}
           </div>
 
           <div className="step-footer">

@@ -7,8 +7,9 @@ import styles from './Tarifas.module.css';
 const PER_PAGE = 12;
 
 export default function Tarifas() {
-  const { tarifas, tiposHabitacion, tiposAlquiler, addTarifa, updateTarifa, deleteTarifa } = useHotel();
+  const { tarifas, tiposHabitacion, tiposAlquiler, addTarifa, updateTarifa, deleteTarifa, incrementarTarifasPorcentaje, userRole } = useHotel();
   const addToast = useToast();
+  const isAdmin = userRole === 'admin';
 
   const [filterTipoHab, setFilterTipoHab] = useState('');
   const [filterTipoAlq, setFilterTipoAlq] = useState('');
@@ -19,6 +20,8 @@ export default function Tarifas() {
   const [form, setForm] = useState({ precio: '', tipoHabitacionId: '', tipoAlquilerId: '' });
   const [confirmId, setConfirmId] = useState(null);
   const [errors, setErrors] = useState({});
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [incrementoPorcentaje, setIncrementoPorcentaje] = useState('');
 
   // Filter tarifas
   const filtered = useMemo(() => {
@@ -139,6 +142,23 @@ export default function Tarifas() {
     setConfirmId(null);
   };
 
+  const handleIncrementoMasivo = async () => {
+    const porcentaje = Number(incrementoPorcentaje);
+    if (!porcentaje || porcentaje <= 0) {
+      addToast('Ingrese un porcentaje válido mayor a 0', 'error');
+      return;
+    }
+    try {
+      await incrementarTarifasPorcentaje(porcentaje);
+      addToast('Tarifas incrementadas correctamente', 'success');
+      setBulkModalOpen(false);
+      setIncrementoPorcentaje('');
+    } catch (error) {
+      const backendMessage = error?.response?.data?.message;
+      addToast(backendMessage || 'No se pudo aplicar el incremento', 'error');
+    }
+  };
+
   const tipoHabOptions = [
     { value: '0', label: 'Todos los Tipos Hab.' },
     ...tiposHabitacion.map(t => ({ value: String(t.id), label: t.nombre })),
@@ -153,9 +173,16 @@ export default function Tarifas() {
     <div className={styles.tarifasPage}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>Tarifas</h1>
-        <Btn icon={<Plus size={14} />} className={styles.crudNew} onClick={openNew}>
-          Nueva Tarifa
-        </Btn>
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="ghost" onClick={() => setBulkModalOpen(true)}>
+              Aumentar %
+            </Btn>
+            <Btn icon={<Plus size={14} />} className={styles.crudNew} onClick={openNew}>
+              Nueva Tarifa
+            </Btn>
+          </div>
+        )}
       </div>
 
       <div className={styles.filtersRow}>
@@ -196,10 +223,12 @@ export default function Tarifas() {
                   <strong style={{ fontSize: 16, color: 'var(--accent-dark)' }}>S/ {Number(tarifa.precio).toFixed(2)}</strong>
                 </td>
                 <td className={`${styles.td} ${styles.actionsCell}`}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <EditBtn onClick={() => openEdit(tarifa)} />
-                    <DeleteBtn onClick={() => setConfirmId(tarifa.id)} />
-                  </div>
+                  {isAdmin && (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <EditBtn onClick={() => openEdit(tarifa)} />
+                      <DeleteBtn onClick={() => setConfirmId(tarifa.id)} />
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -210,7 +239,7 @@ export default function Tarifas() {
         </div>
       </div>
 
-      <Modal open={modalOpen} onOpenChange={setModalOpen} title={editId ? 'Editar Tarifa' : 'Nueva Tarifa'}>
+      <Modal open={modalOpen && isAdmin} onOpenChange={setModalOpen} title={editId ? 'Editar Tarifa' : 'Nueva Tarifa'}>
         <Field label="Tipo de Habitación" error={errors.tipoHabitacionId} required>
           <select
             value={form.tipoHabitacionId}
@@ -258,6 +287,31 @@ export default function Tarifas() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Btn variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Btn>
           <Btn onClick={handleSubmit}>{editId ? 'Actualizar' : 'Crear'}</Btn>
+        </div>
+      </Modal>
+
+      <Modal open={bulkModalOpen && isAdmin} onOpenChange={setBulkModalOpen} title="Aumentar tarifas por porcentaje">
+        <Field label="Porcentaje (%)" required>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={incrementoPorcentaje}
+            onChange={(e) => setIncrementoPorcentaje(e.target.value)}
+            placeholder="Ej: 8"
+            style={{
+              width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md)',
+              border: '1px solid var(--border)', fontSize: 14,
+              color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
+            }}
+          />
+        </Field>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 0 }}>
+          Esta acción incrementa todas las tarifas actuales con el porcentaje indicado.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <Btn variant="ghost" onClick={() => setBulkModalOpen(false)}>Cancelar</Btn>
+          <Btn onClick={handleIncrementoMasivo}>Aplicar incremento</Btn>
         </div>
       </Modal>
 

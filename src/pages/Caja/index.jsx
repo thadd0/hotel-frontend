@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, Field, Modal, EmptyState, Pagination, useToast } from '../../components/UI/index.jsx';
-import { DollarSign, TrendingUp, TrendingDown, Plus, Calendar, FileText } from 'lucide-react';
-import { getResumenHoy, getResumen, postEgreso, postIngresoExtra } from '../../api/caja';
+import { DollarSign, TrendingUp, TrendingDown, Plus, Calendar, FileText, Download } from 'lucide-react';
+import { getResumenHoy, getResumen, getMovimientosRango, postEgreso, postIngresoExtra } from '../../api/caja';
+import { descargarReporteCajaMovimientos } from '../../utils/reportesPdf';
 
 const PER_PAGE = 15;
+const CAJA_FILTROS_STORAGE_KEY = 'caja.filtros.rango';
 
 const inputStyle = {
   width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md, 8px)',
@@ -68,22 +70,62 @@ export default function Caja() {
     movimientos: [],
   });
 
-  // Resumen date filter (admin)
-  const [filtroDesde, setFiltroDesde] = useState('');
-  const [filtroHasta, setFiltroHasta] = useState('');
+  // Resumen date filter (todos los roles) - persistido en localStorage
+  const [filtroDesde, setFiltroDesde] = useState(() => {
+    try {
+      const raw = localStorage.getItem(CAJA_FILTROS_STORAGE_KEY);
+      if (!raw) return '';
+      const parsed = JSON.parse(raw);
+      return parsed?.desde || '';
+    } catch {
+      return '';
+    }
+  });
+  const [filtroHasta, setFiltroHasta] = useState(() => {
+    try {
+      const raw = localStorage.getItem(CAJA_FILTROS_STORAGE_KEY);
+      if (!raw) return '';
+      const parsed = JSON.parse(raw);
+      return parsed?.hasta || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    if (!filtroDesde && !filtroHasta) {
+      localStorage.removeItem(CAJA_FILTROS_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(CAJA_FILTROS_STORAGE_KEY, JSON.stringify({ desde: filtroDesde, hasta: filtroHasta }));
+  }, [filtroDesde, filtroHasta]);
   const fetchResumen = useCallback(async () => {
     setLoading(true);
     try {
-      // Admin date range summary endpoint
-      if (isAdmin && filtroDesde && filtroHasta) {
-        const data = await getResumen(filtroDesde, filtroHasta);
-        setResumen({
-          totalIngresos: data?.totalIngresos || 0,
-          totalEgresos: data?.totalEgresos || 0,
-          balance: data?.balance || 0,
-          cantidadMovimientos: data?.cantidadMovimientos || 0,
-          movimientos: Array.isArray(data?.movimientos) ? data.movimientos : [],
-        });
+      // Filtro por rango: admin usa resumen completo, recepcionista usa listado por rango
+      if (filtroDesde && filtroHasta) {
+        if (isAdmin) {
+          const data = await getResumen(filtroDesde, filtroHasta);
+          setResumen({
+            totalIngresos: data?.totalIngresos || 0,
+            totalEgresos: data?.totalEgresos || 0,
+            balance: data?.balance || 0,
+            cantidadMovimientos: data?.cantidadMovimientos || 0,
+            movimientos: Array.isArray(data?.movimientos) ? data.movimientos : [],
+          });
+        } else {
+          const movs = await getMovimientosRango(filtroDesde, filtroHasta);
+          const movimientos = Array.isArray(movs) ? movs : [];
+          const totalIngresos = movimientos.filter(m => m.tipo !== 'EGRESO').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
+          const totalEgresos = movimientos.filter(m => m.tipo === 'EGRESO').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
+          setResumen({
+            totalIngresos,
+            totalEgresos,
+            balance: totalIngresos - totalEgresos,
+            cantidadMovimientos: movimientos.length,
+            movimientos,
+          });
+        }
       } else {
         // Default: today's movements endpoint
         const movs = await getResumenHoy();
@@ -111,6 +153,16 @@ export default function Caja() {
   }, [fetchResumen]);
 
   const paged = resumen.movimientos.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const movimientosVisiblesPdf = paged.map((m) => {
+    const esCorporativo = Boolean(m.nombreEmpresa && m.nombreEmpresa !== '—');
+    const ocultarMontoYMetodo = !isAdmin && esCorporativo;
+    const descripcion = `${(m.concepto || '').substring(0, 40)}${(m.concepto || '').length > 40 ? '...' : ''}`;
+    return {
+      fecha: new Date(m.fecha).toLocaleDateString('es-PE'),
+      descripcion: descripcion || '—',
+      monto: ocultarMontoYMetodo ? '—' : `S/ ${parseFloat(m.monto).toFixed(2)}`,
+    };
+  });
 
   const openModal = (tipo) => {
     setModalTipo(tipo);
@@ -186,26 +238,40 @@ export default function Caja() {
         <SummaryCard label="Movimientos" value={resumen.cantidadMovimientos} isCount color="var(--text-2)" bg="var(--surface-2, #f5f5f5)" icon={<FileText size={18} />} />
       </div>
 
-      {/* Admin: date range filter — aligned to GET /resumen?desde&hasta */}
-      {isAdmin && (
-        <div style={{
-          display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 18, padding: '14px 16px',
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md, 8px)',
-        }}>
-          <Calendar size={16} color="var(--text-muted)" style={{ marginBottom: 8 }} />
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Desde</label>
-            <input type="date" style={{ ...inputStyle, width: 150 }} value={filtroDesde} onChange={e => { setFiltroDesde(e.target.value); setPage(1); }} />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Hasta</label>
-            <input type="date" style={{ ...inputStyle, width: 150 }} value={filtroHasta} onChange={e => { setFiltroHasta(e.target.value); setPage(1); }} />
-          </div>
-          {(filtroDesde || filtroHasta) && (
-            <Btn variant="ghost" style={{ marginBottom: 2 }} onClick={() => { setFiltroDesde(''); setFiltroHasta(''); setPage(1); }}>Limpiar</Btn>
-          )}
+      <div style={{
+        display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 18, padding: '14px 16px',
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md, 8px)',
+      }}>
+        <Calendar size={16} color="var(--text-muted)" style={{ marginBottom: 8 }} />
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Desde</label>
+          <input type="date" style={{ ...inputStyle, width: 150 }} value={filtroDesde} onChange={e => { setFiltroDesde(e.target.value); setPage(1); }} />
         </div>
-      )}
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Hasta</label>
+          <input type="date" style={{ ...inputStyle, width: 150 }} value={filtroHasta} onChange={e => { setFiltroHasta(e.target.value); setPage(1); }} />
+        </div>
+        {(filtroDesde || filtroHasta) && (
+          <Btn variant="ghost" style={{ marginBottom: 2 }} onClick={() => { setFiltroDesde(''); setFiltroHasta(''); setPage(1); }}>Limpiar</Btn>
+        )}
+        <Btn
+          variant="ghost"
+          style={{ marginBottom: 2 }}
+          icon={<Download size={14} />}
+          onClick={() => descargarReporteCajaMovimientos(movimientosVisiblesPdf, {
+            desde: filtroDesde,
+            hasta: filtroHasta,
+            resumen: {
+              totalIngresos: resumen.totalIngresos,
+              totalEgresos: resumen.totalEgresos,
+              balance: resumen.balance,
+              cantidadMovimientos: resumen.cantidadMovimientos,
+            },
+          })}
+        >
+          Descargar PDF Caja
+        </Btn>
+      </div>
 
       {/* Movements table */}
       {loading ? (
@@ -214,9 +280,14 @@ export default function Caja() {
         <EmptyState message="No hay movimientos registrados" icon={<DollarSign size={48} />} />
       ) : (
         <>
-          <Table headers={['Fecha', 'Tipo', 'Monto', 'Método', 'Concepto', 'Usuario', 'Hab.', 'Cliente']}>
+          <Table headers={['Fecha', 'Tipo', 'Monto', 'Método', 'Concepto', 'Usuario', 'Hab.', 'Cliente', 'Empresa']}>
             {paged.map(m => (
               <tr key={m.id}>
+                {(() => {
+                  const esCorporativo = Boolean(m.nombreEmpresa && m.nombreEmpresa !== '—');
+                  const ocultarMontoYMetodo = !isAdmin && esCorporativo;
+                  return (
+                    <>
                 <td style={{ padding: '10px 14px', fontSize: 13 }}>{new Date(m.fecha).toLocaleDateString('es-PE')}</td>
                 <td style={{ padding: '10px 14px' }}>
                   <span style={{
@@ -230,13 +301,17 @@ export default function Caja() {
                   </span>
                 </td>
                 <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 14, color: 'var(--accent-dark)' }}>
-                  S/ {parseFloat(m.monto).toFixed(2)}
+                  {ocultarMontoYMetodo ? '—' : `S/ ${parseFloat(m.monto).toFixed(2)}`}
                 </td>
-                <td style={{ padding: '10px 14px', fontSize: 13 }}>{m.metodoPago || '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 13 }}>{ocultarMontoYMetodo ? '—' : (m.metodoPago || '—')}</td>
                 <td style={{ padding: '10px 14px', fontSize: 13 }}>{(m.concepto || '').substring(0, 40)}{(m.concepto || '').length > 40 ? '...' : ''}</td>
                 <td style={{ padding: '10px 14px', fontSize: 13 }}>{m.nombreUsuario || '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 13 }}>{m.numeroHabitacion || '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 13 }}>{m.nombreCliente || '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 13 }}>{m.nombreEmpresa || '—'}</td>
+                    </>
+                  );
+                })()}
               </tr>
             ))}
           </Table>

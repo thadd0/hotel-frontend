@@ -85,9 +85,7 @@ export default function Sidebar({ open, onClose }) {
         })}
 
         {/* Divider for user section */}
-        {userRole === 'admin' && (
-          <div style={{ margin: '18px 0 8px', height: 1, background: 'var(--border)' }} />
-        )}
+        <div style={{ margin: '18px 0 8px', height: 1, background: 'var(--border)' }} />
 
         {/* User section at the bottom */}
         <div style={{ marginTop: 6 }}>

@@ -28,3 +28,10 @@ export const deleteTarifa = async (id: number): Promise<void> => {
     method: 'DELETE',
   });
 };
+
+export const patchIncrementoTarifas = async (porcentaje: number): Promise<TarifaDTO[]> => {
+  return apiFetch('/api/recepcion/tarifas/incremento-porcentaje', {
+    method: 'PATCH',
+    data: { porcentaje },
+  });
+};

@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, EmptyState, Pagination, Modal, Field, useToast } from '../../components/UI/index.jsx';
-import { ClipboardList, LogOut, ShoppingCart, Plus, Trash2, Pencil, Check } from 'lucide-react';
+import { ClipboardList, LogOut, ShoppingCart, Plus, Trash2, Pencil, Check, Download } from 'lucide-react';
 import { getCuentasByAlquiler, postCuenta, putCuenta, deleteCuenta } from '../../api/consumos';
+import { patchAlquilerMontos } from '../../api/alquileres';
+import { descargarReporteAlquileresActivos } from '../../utils/reportesPdf';
 
 const PER_PAGE = 12;
 
@@ -31,7 +33,11 @@ export default function Alquileres() {
   const [cuentaModal, setCuentaModal] = useState(null); // alquiler object or null
   const [cuentaItems, setCuentaItems] = useState([]); // CuentaAlquilerDTO[]
   const [newConsumo, setNewConsumo] = useState({ descripcion: '', precioUnit: '', cantidad: 1 });
+  const [pagoConsumoModal, setPagoConsumoModal] = useState(null); // CuentaAlquilerDTO | null
+  const [pagoConsumoMetodo, setPagoConsumoMetodo] = useState('EFECTIVO');
   const [editPopover, setEditPopover] = useState(null); // { id, descripcion, precioUnit, cantidad }
+  const [editMontosModal, setEditMontosModal] = useState(null);
+  const [editMontosForm, setEditMontosForm] = useState({ subTotal: '', pagoPendiente: '' });
 
   const filtered = useMemo(() =>
     alquileres.filter(a => a.estadoAlquiler === tab),
@@ -76,6 +82,8 @@ export default function Alquileres() {
     setCuentaModal(alquiler);
     setNewConsumo({ descripcion: '', precioUnit: '', cantidad: 1 });
     setEditPopover(null);
+    setPagoConsumoModal(null);
+    setPagoConsumoMetodo('EFECTIVO');
     try {
       const data = await getCuentasByAlquiler(alquiler.id);
       setCuentaItems(data);
@@ -86,8 +94,10 @@ export default function Alquileres() {
 
   const addConsumo = async () => {
     const { descripcion, precioUnit, cantidad } = newConsumo;
-    if (!descripcion.trim() || !precioUnit || cantidad < 1) return;
-    const precio = parseFloat(precioUnit);
+    if (!descripcion.trim() || cantidad < 1) return;
+    const alquilerEsEmpresa = Boolean(cuentaModal?.empresaNombre && cuentaModal?.empresaNombre !== '—');
+    const puedeEditarPrecioUnit = isAdmin || !alquilerEsEmpresa;
+    const precio = puedeEditarPrecioUnit ? parseFloat(precioUnit || '0') : 0;
     const payload = { descripcion: descripcion.trim(), precioUnit: precio, cantidad: Number(cantidad), estado: 'PENDIENTE' };
 
     // Add new consumo
@@ -112,6 +122,7 @@ export default function Alquileres() {
 
   const saveEditConsumo = async () => {
     if (!editPopover) return;
+    if (!isAdmin) return;
     const { id, descripcion, precioUnit, cantidad } = editPopover;
     if (!descripcion.trim() || !precioUnit || Number(cantidad) < 1) return;
 
@@ -168,20 +179,63 @@ export default function Alquileres() {
   };
 
   const cuentaTotal = cuentaItems.reduce((sum, c) => sum + c.subTotal, 0);
-  const markConsumoAsPaid = async (c) => {
+  const alquilerCuentaEsEmpresa = Boolean(cuentaModal?.empresaNombre && cuentaModal?.empresaNombre !== '—');
+  const mostrarPrecioCuenta = isAdmin || !alquilerCuentaEsEmpresa;
+  const puedeMarcarPagadoCuenta = isAdmin || !alquilerCuentaEsEmpresa;
+  const openPagoConsumoModal = (c) => {
+    setPagoConsumoModal(c);
+    setPagoConsumoMetodo('EFECTIVO');
+  };
+
+  const markConsumoAsPaid = async (c, metodoPago = 'EFECTIVO') => {
     try {
       const updated = await putCuenta(cuentaModal.id, c.id, {
         descripcion: c.descripcion, precioUnit: c.precioUnit, cantidad: c.cantidad, estado: 'PAGADO',
-      });
+      }, metodoPago);
       setCuentaItems(prev => prev.map(x => x.id === c.id ? updated : x));
-      refreshAlquiler(cuentaModal.id);
-      setCuentaModal(prev => prev ? { ...prev, pagoPendiente: Math.max(0, parseFloat(prev.pagoPendiente) - c.subTotal) } : prev);
+      const updatedAlquiler = await refreshAlquiler(cuentaModal.id);
+      if (updatedAlquiler) {
+        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: updatedAlquiler.pagoPendiente } : prev);
+      } else {
+        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: Math.max(0, parseFloat(prev.pagoPendiente) - c.subTotal) } : prev);
+      }
+      setPagoConsumoModal(null);
       addToast('Consumo marcado como pagado', 'success');
-    } catch {
-      setCuentaItems(prev => prev.map(x => x.id === c.id ? { ...x, estado: 'PAGADO' } : x));
-      addToast('Consumo marcado como pagado', 'success');
+    } catch (error) {
+      const backendMessage = error?.response?.data?.message;
+      addToast(backendMessage || 'No se pudo marcar el consumo como pagado', 'error');
     }
   };
+
+  const openEditMontos = (alquiler) => {
+    setEditMontosModal(alquiler);
+    setEditMontosForm({
+      subTotal: String(Number(alquiler.subTotal || 0).toFixed(2)),
+      pagoPendiente: String(Number(alquiler.pagoPendiente || 0).toFixed(2)),
+    });
+  };
+
+  const saveEditMontos = async () => {
+    if (!editMontosModal) return;
+    const subTotal = Number(editMontosForm.subTotal);
+    const pagoPendiente = Number(editMontosForm.pagoPendiente);
+    if (Number.isNaN(subTotal) || Number.isNaN(pagoPendiente) || subTotal < 0 || pagoPendiente < 0) {
+      addToast('Ingrese montos válidos', 'error');
+      return;
+    }
+
+    try {
+      const updated = await patchAlquilerMontos(editMontosModal.id, { subTotal, pagoPendiente });
+      await refreshAlquiler(editMontosModal.id);
+      setEditMontosModal(null);
+      addToast(`Montos actualizados para alquiler ${updated.id}`, 'success');
+    } catch (error) {
+      const backendMessage = error?.response?.data?.message;
+      addToast(backendMessage || 'No se pudieron actualizar los montos', 'error');
+    }
+  };
+
+  const alquilerHeaders = ['#', 'Habitación', 'Cliente', 'Empresa', 'Historial Caja', 'Ingreso', 'Fecha Prevista', 'SubTotal', 'Pendiente', 'Estado', ''];
 
 
   return (
@@ -191,6 +245,11 @@ export default function Alquileres() {
           <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Alquileres</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '4px 0 0' }}>Rentas activas e historial</p>
         </div>
+        {tab === 'ACTIVO' && paged.length > 0 && (
+          <Btn variant="ghost" icon={<Download size={14} />} onClick={() => descargarReporteAlquileresActivos(paged)}>
+            Descargar PDF Activos
+          </Btn>
+        )}
       </div>
 
       {/* Tabs: Activos / Historial */}
@@ -205,9 +264,14 @@ export default function Alquileres() {
         <EmptyState message={tab === 'ACTIVO' ? 'No hay alquileres activos' : 'Sin historial'} icon={<ClipboardList size={48} />} />
       ) : (
         <>
-          <Table headers={['#', 'Habitación', 'Cliente', 'Ingreso', 'Fecha Prevista', 'SubTotal', 'Pendiente', 'Estado', '']}>
+          <Table headers={alquilerHeaders}>
             {paged.map(a => (
               <tr key={a.id}>
+                {(() => {
+                  const esEmpresa = Boolean(a.empresaNombre && a.empresaNombre !== '—');
+                  const puedeVerMontos = isAdmin || !esEmpresa;
+                  return (
+                    <>
                 <td style={td}>{a.id}</td>
                 <td style={td}>
                   <span style={{
@@ -218,16 +282,24 @@ export default function Alquileres() {
                   </span>
                 </td>
                 <td style={{ ...td, fontWeight: 600 }}>{a.nombreCliente}</td>
+                <td style={td}>{a.empresaNombre || '—'}</td>
+                <td style={{ ...td, fontWeight: 700, color: 'var(--accent-dark)' }}>
+                  {puedeVerMontos ? `S/ ${Number(a.totalPagadoCaja || 0).toFixed(2)}` : '—'}
+                </td>
                 <td style={td}>{formatDate(a.fechaIngreso)}</td>
                 <td style={td}>{formatDate(a.fechaPrevista)}</td>
-                <td style={{ ...td, fontWeight: 700 }}>S/ {parseFloat(a.subTotal).toFixed(2)}</td>
+                <td style={{ ...td, fontWeight: 700 }}>
+                  {puedeVerMontos ? `S/ ${parseFloat(a.subTotal).toFixed(2)}` : '—'}
+                </td>
                 <td style={td}>
-                  <span style={{
-                    fontWeight: 700,
-                    color: a.pagoPendiente > 0 ? 'var(--red, #e53935)' : 'var(--green, #43a047)',
-                  }}>
-                    S/ {parseFloat(a.pagoPendiente).toFixed(2)}
-                  </span>
+                  {puedeVerMontos ? (
+                    <span style={{
+                      fontWeight: 700,
+                      color: a.pagoPendiente > 0 ? 'var(--red, #e53935)' : 'var(--green, #43a047)',
+                    }}>
+                      S/ {parseFloat(a.pagoPendiente).toFixed(2)}
+                    </span>
+                  ) : '—'}
                 </td>
                 <td style={td}>
                   <span style={{
@@ -245,6 +317,12 @@ export default function Alquileres() {
                       icon={<ShoppingCart size={13} />}>
                       Cuenta
                     </Btn>
+                    {isAdmin && (
+                      <Btn variant="ghost" style={{ fontSize: 12, padding: '4px 10px' }}
+                        onClick={() => openEditMontos(a)}>
+                        Editar montos
+                      </Btn>
+                    )}
                     {a.estadoAlquiler === 'ACTIVO' && (
                       <Btn style={{ fontSize: 12, padding: '4px 10px', background: 'var(--red, #e53935)', color: '#fff', border: 'none' }}
                         onClick={() => openCheckout(a)}
@@ -254,6 +332,9 @@ export default function Alquileres() {
                     )}
                   </div>
                 </td>
+                    </>
+                  );
+                })()}
               </tr>
             ))}
           </Table>
@@ -334,9 +415,9 @@ export default function Alquileres() {
                   <thead>
                     <tr style={{ borderBottom: '2px solid var(--border)' }}>
                       <th style={thStyle}>Descripción</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>P. Unit</th>
+                      {mostrarPrecioCuenta && <th style={{ ...thStyle, textAlign: 'right' }}>P. Unit</th>}
                       <th style={{ ...thStyle, textAlign: 'center' }}>Cant.</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>SubTotal</th>
+                      {mostrarPrecioCuenta && <th style={{ ...thStyle, textAlign: 'right' }}>SubTotal</th>}
                       <th style={{ ...thStyle, textAlign: 'center' }}>Estado</th>
                       <th style={thStyle}></th>
                     </tr>
@@ -345,9 +426,9 @@ export default function Alquileres() {
                     {cuentaItems.map(c => (
                       <tr key={c.id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={tdCuenta}>{c.descripcion}</td>
-                        <td style={{ ...tdCuenta, textAlign: 'right' }}>S/ {c.precioUnit.toFixed(2)}</td>
+                        {mostrarPrecioCuenta && <td style={{ ...tdCuenta, textAlign: 'right' }}>S/ {c.precioUnit.toFixed(2)}</td>}
                         <td style={{ ...tdCuenta, textAlign: 'center' }}>{c.cantidad}</td>
-                        <td style={{ ...tdCuenta, textAlign: 'right', fontWeight: 600 }}>S/ {c.subTotal.toFixed(2)}</td>
+                        {mostrarPrecioCuenta && <td style={{ ...tdCuenta, textAlign: 'right', fontWeight: 600 }}>S/ {c.subTotal.toFixed(2)}</td>}
                         <td style={{ ...tdCuenta, textAlign: 'center' }}>
                           <span style={{
                             fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 'var(--r-sm, 4px)',
@@ -358,18 +439,22 @@ export default function Alquileres() {
                           </span>
                         </td>
                         <td style={{ ...tdCuenta, position: 'relative' }}>
-                          {c.estado === 'PENDIENTE' && cuentaModal?.estadoAlquiler === 'ACTIVO' && (
+                          {cuentaModal?.estadoAlquiler === 'ACTIVO' && (
                             <div style={{ display: 'flex', gap: 4 }}>
-                              <button onClick={() => startEditConsumo(c)} title="Editar" style={{
-                                border: 'none', background: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 2,
-                              }}>
-                                <Pencil size={14} />
-                              </button>
-                              <button onClick={() => markConsumoAsPaid(c)} title="Marcar como pagado" style={{
-                                border: 'none', background: 'none', cursor: 'pointer', color: 'var(--green, #43a047)', padding: 2,
-                              }}>
-                                <Check size={14} />
-                              </button>
+                              {c.estado === 'PENDIENTE' && isAdmin && (
+                                <button onClick={() => startEditConsumo(c)} title="Editar" style={{
+                                  border: 'none', background: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 2,
+                                }}>
+                                  <Pencil size={14} />
+                                </button>
+                              )}
+                              {c.estado === 'PENDIENTE' && puedeMarcarPagadoCuenta && (
+                                <button onClick={() => openPagoConsumoModal(c)} title="Marcar como pagado" style={{
+                                  border: 'none', background: 'none', cursor: 'pointer', color: 'var(--green, #43a047)', padding: 2,
+                                }}>
+                                  <Check size={14} />
+                                </button>
+                              )}
                               <button onClick={() => removeConsumo(c.id)} title="Eliminar" style={{
                                 border: 'none', background: 'none', cursor: 'pointer', color: 'var(--red, #e53935)', padding: 2,
                               }}>
@@ -377,7 +462,7 @@ export default function Alquileres() {
                               </button>
                             </div>
                           )}
-                          {editPopover?.id === c.id && (
+                          {isAdmin && editPopover?.id === c.id && (
                             <div style={{
                               position: 'absolute',
                               right: 0,
@@ -431,7 +516,7 @@ export default function Alquileres() {
                   </tbody>
                 </table>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 0', fontWeight: 700, fontSize: 14 }}>
-                  Total consumos: S/ {cuentaTotal.toFixed(2)}
+                  {mostrarPrecioCuenta ? `Total consumos: S/ ${cuentaTotal.toFixed(2)}` : `Items registrados: ${cuentaItems.length}`}
                 </div>
               </div>
             ) : (
@@ -443,20 +528,27 @@ export default function Alquileres() {
             {/* Add new consumo */}
             {cuentaModal.estadoAlquiler === 'ACTIVO' && (
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                {(() => {
+                  const alquilerEsEmpresa = Boolean(cuentaModal?.empresaNombre && cuentaModal?.empresaNombre !== '—');
+                  const mostrarPrecioUnit = isAdmin || !alquilerEsEmpresa;
+                  return (
+                    <>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.5px' }}>
                   Agregar consumo
                 </div>
-                <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.7fr auto', gap: 8, alignItems: 'end' }}>
+                <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: mostrarPrecioUnit ? '2fr 1fr 0.7fr auto' : '2fr 0.7fr auto', gap: 8, alignItems: 'end' }}>
                   <Field label="Descripción">
                     <input style={inputStyle} value={newConsumo.descripcion}
                       onChange={(e) => setNewConsumo(p => ({ ...p, descripcion: e.target.value }))}
                       placeholder="Ej: Agua mineral" />
                   </Field>
-                  <Field label="Precio Unit.">
-                    <input style={inputStyle} type="number" min="0" step="0.5" value={newConsumo.precioUnit}
-                      onChange={(e) => setNewConsumo(p => ({ ...p, precioUnit: e.target.value }))}
-                      placeholder="0.00" />
-                  </Field>
+                  {mostrarPrecioUnit && (
+                    <Field label="Precio Unit.">
+                      <input style={inputStyle} type="number" min="0" step="0.5" value={newConsumo.precioUnit}
+                        onChange={(e) => setNewConsumo(p => ({ ...p, precioUnit: e.target.value }))}
+                        placeholder="0.00" />
+                    </Field>
+                  )}
                   <Field label="Cant.">
                     <input style={inputStyle} type="number" min="1" value={newConsumo.cantidad}
                       onChange={(e) => setNewConsumo(p => ({ ...p, cantidad: e.target.value }))}
@@ -468,8 +560,71 @@ export default function Alquileres() {
                     </Btn>
                   </div>
                 </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
+          </>
+        )}
+      </Modal>
+
+      <Modal open={!!pagoConsumoModal} onOpenChange={(open) => !open && setPagoConsumoModal(null)} title="Marcar consumo como pagado" width={420}>
+        {pagoConsumoModal && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
+              {pagoConsumoModal.descripcion} - S/ {Number(pagoConsumoModal.subTotal || 0).toFixed(2)}
+            </div>
+            <Field label="Método de pago" required>
+              <select
+                value={pagoConsumoMetodo}
+                onChange={(e) => setPagoConsumoMetodo(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="EFECTIVO">Efectivo</option>
+                <option value="TARJETA">Tarjeta</option>
+                <option value="YAPE">Yape</option>
+                <option value="TRANSFERENCIA">Transferencia</option>
+              </select>
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <Btn variant="ghost" onClick={() => setPagoConsumoModal(null)}>Cancelar</Btn>
+              <Btn onClick={() => markConsumoAsPaid(pagoConsumoModal, pagoConsumoMetodo)}>Confirmar pago</Btn>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      <Modal open={!!editMontosModal} onOpenChange={(open) => !open && setEditMontosModal(null)} title="Editar montos del alquiler" width={420}>
+        {editMontosModal && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
+              Alquiler #{editMontosModal.id} - Hab. {editMontosModal.numeroHabitacion}
+            </div>
+            <Field label="SubTotal (S/)" required>
+              <input
+                style={inputStyle}
+                type="number"
+                min="0"
+                step="0.01"
+                value={editMontosForm.subTotal}
+                onChange={(e) => setEditMontosForm((p) => ({ ...p, subTotal: e.target.value }))}
+              />
+            </Field>
+            <Field label="Pendiente (S/)" required>
+              <input
+                style={inputStyle}
+                type="number"
+                min="0"
+                step="0.01"
+                value={editMontosForm.pagoPendiente}
+                onChange={(e) => setEditMontosForm((p) => ({ ...p, pagoPendiente: e.target.value }))}
+              />
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <Btn variant="ghost" onClick={() => setEditMontosModal(null)}>Cancelar</Btn>
+              <Btn onClick={saveEditMontos}>Guardar</Btn>
+            </div>
           </>
         )}
       </Modal>

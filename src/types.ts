@@ -67,6 +67,8 @@ export type AlquilerResponseDTO = {
   id: number;
   numeroHabitacion: string;
   nombreCliente: string;
+  empresaNombre?: string;
+  totalPagadoCaja?: number;
   subTotal: number;
   pagoPendiente: number;
   fechaIngreso: string;
@@ -95,6 +97,7 @@ export type MovimientoCajaResponseDTO = {
   nombreUsuario: string;
   numeroHabitacion?: string;
   nombreCliente?: string;
+  nombreEmpresa?: string;
 };
 
 export type ResumenCajaDTO = {

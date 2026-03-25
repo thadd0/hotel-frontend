@@ -4,10 +4,10 @@ import { initialData } from '../data/initialData';
 // API imports (calls will fail gracefully when backend is offline — fallback to local mock)
 import { getHabitaciones, postHabitacion, putHabitacion, deleteHabitacion as deleteHabitacionAPI, patchEstadoHabitacion } from '../api/habitaciones';
 import { getAlquileresActivos, getAlquileresHistorial, getAlquiler, postCheckIn, postCheckOut } from '../api/alquileres';
-import { getTarifas, postTarifa, putTarifa, deleteTarifa as deleteTarifaAPI } from '../api/tarifas';
+import { getTarifas, postTarifa, putTarifa, deleteTarifa as deleteTarifaAPI, patchIncrementoTarifas } from '../api/tarifas';
 import { getTiposHabitacion, postTipoHabitacion, putTipoHabitacion, deleteTipoHabitacion as deleteTipoHabitacionAPI } from '../api/categorias';
 import { getTiposAlquiler, postTipoAlquiler, putTipoAlquiler, deleteTipoAlquiler as deleteTipoAlquilerAPI } from '../api/tiposAlquiler';
-import { getEmpresas, postEmpresa, putEmpresa, deleteEmpresa as deleteEmpresaAPI } from '../api/empresas';
+import { getEmpresas, getEmpresasRecepcion, postEmpresa, putEmpresa, deleteEmpresa as deleteEmpresaAPI } from '../api/empresas';
 import { getClientes, postCliente, putCliente, deleteCliente as deleteClienteAPI } from '../api/clientes';
 import { getResumenHoy } from '../api/caja';
 import { logout as logoutApi } from '../auth/api';
@@ -85,9 +85,13 @@ export function HotelProvider({ children }) {
     if (!token) return;
 
     let alive = true;
+    const currentRole = deriveAppRole(token);
 
     (async () => {
       try {
+        const empresasRequest = currentRole === 'admin' ? getEmpresas() : getEmpresasRecepcion();
+        const historialRequest = currentRole === 'admin' ? getAlquileresHistorial() : Promise.resolve([]);
+
         const [
           habitacionesRes,
           tarifasRes,
@@ -103,10 +107,10 @@ export function HotelProvider({ children }) {
           getTarifas(),
           getTiposHabitacion(),
           getTiposAlquiler(),
-          getEmpresas(),
+          empresasRequest,
           getClientes(),
           getAlquileresActivos(),
-          getAlquileresHistorial(), // admin-only — returns null for recepcionistas (403)
+          historialRequest,
           getResumenHoy(),
         ])).map(r => r.status === 'fulfilled' ? r.value : null);
 
@@ -187,6 +191,12 @@ export function HotelProvider({ children }) {
     setTarifas(p => p.filter(t => t.id !== id));
   }, []);
 
+  const incrementarTarifasPorcentaje = useCallback(async (porcentaje) => {
+    const updated = await patchIncrementoTarifas(porcentaje);
+    setTarifas(updated);
+    return updated;
+  }, []);
+
   // ── Habitaciones CRUD ──────────────────────────────────────────────
   const addHabitacion = useCallback(async (d) => {
     const created = await postHabitacion(d);
@@ -234,6 +244,7 @@ export function HotelProvider({ children }) {
   const updateCliente = useCallback(async (id, d) => {
     const updated = await putCliente(id, d);
     setClientes(p => p.map(c => c.id === id ? updated : c));
+    return updated;
   }, []);
 
   const deleteCliente = useCallback(async (id) => {
@@ -278,7 +289,7 @@ export function HotelProvider({ children }) {
       tiposDocumento,
 
       // Tarifas
-      tarifas, addTarifa, updateTarifa, deleteTarifa,
+      tarifas, addTarifa, updateTarifa, deleteTarifa, incrementarTarifasPorcentaje,
 
       // Habitaciones
       habitaciones, addHabitacion, updateHabitacion, deleteHabitacion, cambiarEstado,

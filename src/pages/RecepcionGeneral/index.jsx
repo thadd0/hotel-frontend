@@ -8,7 +8,8 @@ import { BedDouble, Layers, ChevronDown, LogIn, LogOut } from 'lucide-react';
 const ESTADO_KEYS = Object.keys(ESTADOS);
 
 export default function RecepcionGeneral() {
-  const { habitaciones, tiposHabitacion, pisos, tarifas, cambiarEstado, checkIn, checkOut, alquileres } = useHotel();
+  const { habitaciones, tiposHabitacion, pisos, tarifas, cambiarEstado, checkIn, checkOut, alquileres, userRole } = useHotel();
+  const isAdmin = userRole === 'admin';
   const addToast = useToast();
   const [fPiso,      setFPiso]      = useState('');
   const [fEstado,    setFEstado]    = useState('');
@@ -127,6 +128,8 @@ export default function RecepcionGeneral() {
             const est  = ESTADOS[hab.estado] || ESTADOS.DISPONIBLE;
             // Find active alquiler for this room
             const activeAlquiler = alquileres.find(a => a.numeroHabitacion === hab.numero && a.estadoAlquiler === 'ACTIVO');
+            const alquilerEsEmpresa = Boolean(activeAlquiler?.empresaNombre && activeAlquiler?.empresaNombre !== '—');
+            const puedeVerMontoPendiente = isAdmin || !alquilerEsEmpresa;
 
             return (
               <div key={hab.id} style={{
@@ -235,7 +238,7 @@ export default function RecepcionGeneral() {
                         {activeAlquiler.nombreCliente}
                       </div>
                       <div style={{ fontSize: 9.5, color: 'var(--text-muted)', marginTop: 2 }}>
-                        Pendiente: S/ {activeAlquiler.pagoPendiente?.toFixed(2) || '0.00'}
+                        Pendiente: {puedeVerMontoPendiente ? `S/ ${activeAlquiler.pagoPendiente?.toFixed(2) || '0.00'}` : '—'}
                       </div>
                     </div>
                   )}
@@ -259,6 +262,10 @@ export default function RecepcionGeneral() {
       {/* Check-out modal — POST /{id}/check-out?metodoPago=X */}
       <Modal open={!!checkOutTarget} onOpenChange={(open) => !open && setCheckOutTarget(null)} title="Confirmar Check-out" width={400}>
         {checkOutTarget && (
+          (() => {
+            const alquilerEsEmpresa = Boolean(checkOutTarget.empresaNombre && checkOutTarget.empresaNombre !== '—');
+            const puedeVerMontoPendiente = isAdmin || !alquilerEsEmpresa;
+            return (
           <>
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 14, marginBottom: 8 }}>
@@ -266,9 +273,11 @@ export default function RecepcionGeneral() {
               </div>
               <div style={{ fontSize: 14, marginBottom: 4 }}>
                 <strong>Pendiente:</strong>{' '}
-                <span style={{ color: checkOutTarget.pagoPendiente > 0 ? 'var(--red, #e53935)' : 'var(--green, #43a047)', fontWeight: 700 }}>
-                  S/ {parseFloat(checkOutTarget.pagoPendiente).toFixed(2)}
-                </span>
+                {puedeVerMontoPendiente ? (
+                  <span style={{ color: checkOutTarget.pagoPendiente > 0 ? 'var(--red, #e53935)' : 'var(--green, #43a047)', fontWeight: 700 }}>
+                    S/ {parseFloat(checkOutTarget.pagoPendiente).toFixed(2)}
+                  </span>
+                ) : '—'}
               </div>
             </div>
             <Field label="Método de pago">
@@ -288,6 +297,8 @@ export default function RecepcionGeneral() {
               <Btn variant="primary" icon={<LogOut size={14} />} onClick={handleCheckOut}>Confirmar Check-out</Btn>
             </div>
           </>
+            );
+          })()
         )}
       </Modal>
     </div>

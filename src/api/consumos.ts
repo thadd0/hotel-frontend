@@ -12,10 +12,16 @@ export async function postCuenta(alquilerId: number, data: Omit<CuentaAlquilerDT
   });
 }
 
-export async function putCuenta(alquilerId: number, id: number, data: Omit<CuentaAlquilerDTO, 'id' | 'subTotal' | 'alquilerId'>): Promise<CuentaAlquilerDTO> {
+export async function putCuenta(
+  alquilerId: number,
+  id: number,
+  data: Omit<CuentaAlquilerDTO, 'id' | 'subTotal' | 'alquilerId'>,
+  metodoPago?: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA',
+): Promise<CuentaAlquilerDTO> {
   return apiFetch(`/api/recepcion/alquiler/${alquilerId}/cuenta/${id}`, {
     method: 'PUT',
     data,
+    params: metodoPago ? { metodoPago } : undefined,
   });
 }
 

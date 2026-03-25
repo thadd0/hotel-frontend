@@ -18,7 +18,7 @@ export default function UserSidebar({ open, onClose }) {
         top: 56, // justo debajo del header
         right: 24,
         minWidth: 210,
-        background: 'var(--surface-1)',
+        background: 'var(--surface)',
         boxShadow: '0 4px 24px #0003',
         borderRadius: 12,
         padding: '10px 0 6px 0',
@@ -51,6 +51,7 @@ export default function UserSidebar({ open, onClose }) {
           <span style={{fontSize:10, color:'var(--text-xmuted)', display:'block'}}>Datos de tu cuenta</span>
         </span>
       </Link>
+      <div style={{ height: 1, background: 'var(--border)', margin: '8px 16px 0' }} />
       <button
         type="button"
         onClick={e => { e.stopPropagation(); logout(); }}

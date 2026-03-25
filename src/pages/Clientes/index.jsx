@@ -306,7 +306,9 @@ export default function Clientes() {
                   <input
                     type="checkbox"
                     checked={form.empresaEnabled}
+                    disabled={!!editId && !isAdmin}
                     onChange={(e) => {
+                      if (editId && !isAdmin) return;
                       const enabled = e.target.checked;
                       setForm((p) => ({
                         ...p,
@@ -318,9 +320,9 @@ export default function Clientes() {
                   Pertenece a una empresa
                 </label>
                 <select
-                  style={{ ...selectStyle, opacity: form.empresaEnabled ? 1 : 0.65, cursor: form.empresaEnabled ? 'pointer' : 'not-allowed' }}
+                  style={{ ...selectStyle, opacity: (form.empresaEnabled && (isAdmin || !editId)) ? 1 : 0.65, cursor: (form.empresaEnabled && (isAdmin || !editId)) ? 'pointer' : 'not-allowed' }}
                   value={form.empresaId}
-                  disabled={!form.empresaEnabled}
+                  disabled={!form.empresaEnabled || (!!editId && !isAdmin)}
                   onChange={(e) => setForm((p) => ({ ...p, empresaId: e.target.value }))}
                 >
                   <option value="" disabled>Selecciona una empresa</option>

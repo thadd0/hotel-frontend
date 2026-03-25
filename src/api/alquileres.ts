@@ -27,3 +27,10 @@ export async function postCheckOut(id: number, metodoPago: string): Promise<Alqu
   });
 }
 
+export async function patchAlquilerMontos(id: number, data: { subTotal: number; pagoPendiente: number }): Promise<AlquilerResponseDTO> {
+  return apiFetch(`/api/recepcion/alquiler/${id}/montos`, {
+    method: 'PATCH',
+    data,
+  });
+}
+

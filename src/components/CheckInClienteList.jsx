@@ -5,7 +5,13 @@ import { Field, Btn, SearchInput, Modal, useToast } from './UI/index.jsx';
 import { Plus, Check } from 'lucide-react';
 import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
 
-export default function CheckInClienteList({ clientes = [], onClientesChange, onAddModeChange }) {
+export default function CheckInClienteList({
+  clientes = [],
+  onClientesChange,
+  onAddModeChange,
+  representativeId,
+  onRepresentativeChange,
+}) {
   const { clientes: allClientes, addCliente, updateCliente, deleteCliente, tiposDocumento, empresas, userRole } = useHotel();
   const isAdmin = userRole === 'admin';
   const addToast = useToast();
@@ -61,6 +67,7 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
     [tiposDocumentoSource]
   );
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterTipoCliente, setFilterTipoCliente] = useState('TODOS'); // TODOS | EMPRESA | EXTERNO
   const [showNewForm, setShowNewForm] = useState(false);
   const [newPhoneCountry, setNewPhoneCountry] = useState('PE');
   const [editPhoneCountry, setEditPhoneCountry] = useState('PE');
@@ -86,14 +93,31 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
     setSelectedIds(clientes.map((c) => c?.id).filter(Boolean));
   }, [clientes]);
 
+  useEffect(() => {
+    if (!selectedIds.length) {
+      onRepresentativeChange?.(null);
+      return;
+    }
+    if (!representativeId || !selectedIds.includes(representativeId)) {
+      onRepresentativeChange?.(selectedIds[0]);
+    }
+  }, [selectedIds, representativeId, onRepresentativeChange]);
+
   const filteredClientes = useMemo(() => {
-    if (!searchTerm.trim()) return allClientes;
-    const term = searchTerm.toLowerCase();
-    return allClientes.filter((cliente) =>
-      cliente.nombre?.toLowerCase().includes(term) ||
-      cliente.numDocumento?.toString().toLowerCase().includes(term)
-    );
-  }, [allClientes, searchTerm]);
+    const term = searchTerm.trim().toLowerCase();
+    return allClientes.filter((cliente) => {
+      const matchSearch = !term
+        || cliente.nombre?.toLowerCase().includes(term)
+        || cliente.numDocumento?.toString().toLowerCase().includes(term);
+
+      const esEmpresa = Boolean(cliente.empresaId || cliente.empresaNombre);
+      const matchTipo = filterTipoCliente === 'TODOS'
+        || (filterTipoCliente === 'EMPRESA' && esEmpresa)
+        || (filterTipoCliente === 'EXTERNO' && !esEmpresa);
+
+      return matchSearch && matchTipo;
+    });
+  }, [allClientes, searchTerm, filterTipoCliente]);
 
   useEffect(() => {
     if (!newClienteData.tipoDocumento && tiposDocumentoPermitidos.length) {
@@ -120,6 +144,14 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
     const isSelected = selectedIds.includes(cliente.id);
     const nextIds = isSelected ? selectedIds.filter((id) => id !== cliente.id) : [...selectedIds, cliente.id];
     updateSelectedClientes(nextIds);
+
+    if (!isSelected && !representativeId) {
+      onRepresentativeChange?.(cliente.id);
+      return;
+    }
+    if (isSelected && representativeId === cliente.id) {
+      onRepresentativeChange?.(nextIds[0] || null);
+    }
   };
 
   const startEditCliente = (cliente) => {
@@ -164,15 +196,23 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
       const empresaId = editEmpresaEnabled && editClienteData.empresaId
         ? Number(editClienteData.empresaId)
         : null;
-      await updateCliente(editingCliente.id, {
+      const updatedCliente = await updateCliente(editingCliente.id, {
         tipoDocumento: editClienteData.tipoDocumento,
         numDocumento: editClienteData.numDocumento,
         nombre: editClienteData.nombre,
         telefono,
         empresaId,
       });
+
+      const refreshedSeleccionados = selectedIds
+        .map((id) => {
+          if (id === editingCliente.id) return updatedCliente;
+          return allClientes.find((c) => c.id === id);
+        })
+        .filter(Boolean);
+
+      onClientesChange?.(refreshedSeleccionados);
       setEditingCliente(null);
-      updateSelectedClientes(selectedIds);
     } catch {
       // keep modal open so user can retry
     }
@@ -193,7 +233,7 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
   };
 
   const saveNewCliente = async () => {
-    const { tipoDocumento, numDocumento, nombre, telefono } = newClienteData;
+    const { tipoDocumento, numDocumento, nombre, telefono, empresaId } = newClienteData;
     if (!nombre.trim() || !numDocumento.trim()) return;
 
     try {
@@ -209,6 +249,7 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
         numDocumento,
         nombre,
         telefono: telefonoCompleto,
+        empresaId: empresaId ? Number(empresaId) : null,
       });
       if (!savedCliente) return;
 
@@ -245,6 +286,15 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
     <div className="checkin-clients-section">
       <div className="clients-controls">
         <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar cliente..." />
+        <select
+          value={filterTipoCliente}
+          onChange={(e) => setFilterTipoCliente(e.target.value)}
+          style={{ width: 126, padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', fontSize: 12.5, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit' }}
+        >
+          <option value="TODOS">Todos</option>
+          <option value="EMPRESA">Empresa</option>
+          <option value="EXTERNO">Externo</option>
+        </select>
         <button
           className={`add-client-top ${showNewForm ? 'active' : ''}`}
           title={showNewForm ? 'Ocultar formulario de agregar' : 'Agregar huésped'}
@@ -280,6 +330,19 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
                     <span>{cliente.tipoDocumento?.nombre || cliente.tipoDocumento || 'DNI'}: {cliente.numDocumento || '—'}{cliente.empresaNombre ? ` · ${cliente.empresaNombre}` : ''}</span>
                   </div>
                   <div className="client-row-actions">
+                    {isSelected && (
+                      <button
+                        type="button"
+                        onClick={() => onRepresentativeChange?.(cliente.id)}
+                        style={{
+                          background: representativeId === cliente.id ? 'var(--accent-light)' : undefined,
+                          borderColor: representativeId === cliente.id ? 'var(--accent-mid)' : undefined,
+                          fontWeight: representativeId === cliente.id ? 700 : 500,
+                        }}
+                      >
+                        {representativeId === cliente.id ? 'Representante' : 'Marcar rep.'}
+                      </button>
+                    )}
                     <button type="button" onClick={() => startEditCliente(cliente)}>Editar</button>
                     {isAdmin && (
                       <button type="button" onClick={() => removeCliente(cliente.id)}>Eliminar</button>
@@ -358,7 +421,9 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
                   <input
                     type="checkbox"
                     checked={editEmpresaEnabled}
+                    disabled={!isAdmin}
                     onChange={(e) => {
+                      if (!isAdmin) return;
                       const enabled = e.target.checked;
                       setEditEmpresaEnabled(enabled);
                       if (!enabled) {
@@ -373,14 +438,14 @@ export default function CheckInClienteList({ clientes = [], onClientesChange, on
                 <select
                   value={editClienteData.empresaId}
                   onChange={(e) => setEditClienteData((s) => ({ ...s, empresaId: e.target.value }))}
-                  disabled={!editEmpresaEnabled}
+                  disabled={!editEmpresaEnabled || !isAdmin}
                   style={{
                     width: '100%',
                     padding: '8px 10px',
                     borderRadius: 'var(--r-sm)',
                     border: '1px solid var(--border)',
-                    opacity: editEmpresaEnabled ? 1 : 0.6,
-                    cursor: editEmpresaEnabled ? 'pointer' : 'not-allowed',
+                    opacity: (editEmpresaEnabled && isAdmin) ? 1 : 0.6,
+                    cursor: (editEmpresaEnabled && isAdmin) ? 'pointer' : 'not-allowed',
                   }}
                 >
                   <option value="" disabled>Selecciona una empresa</option>
