@@ -30,7 +30,6 @@ export default function Sidebar({ open, onClose }) {
   const NAV = userRole === 'admin' ? NAV_ADMIN : NAV_RECEPCION;
   return (
     <aside className={`sidebar${open ? ' sidebar--open' : ''}`}>
-      {/* Logo + close button (mobile) */}
       <div style={s.logo}>
         <div style={s.logoMark}>
           <Hotel size={18} color="var(--accent)" strokeWidth={2} />
@@ -84,6 +83,58 @@ export default function Sidebar({ open, onClose }) {
             </Link>
           );
         })}
+
+        {/* Divider for user section */}
+        {userRole === 'admin' && (
+          <div style={{ margin: '18px 0 8px', height: 1, background: 'var(--border)' }} />
+        )}
+
+        {/* User section at the bottom */}
+        <div style={{ marginTop: 6 }}>
+          <Link
+            to="/perfil"
+            onClick={onClose}
+            style={{
+              ...s.item,
+              marginBottom: 2,
+              background: isActive('/perfil') ? 'var(--side-active-bg)' : 'transparent',
+            }}
+          >
+            <span style={{
+              ...s.iconBox,
+              background: isActive('/perfil') ? 'var(--accent)' : 'var(--surface-2)',
+              color: isActive('/perfil') ? '#fff' : 'var(--text-muted)',
+            }}>
+              <Users size={14} strokeWidth={isActive('/perfil') ? 2.2 : 1.8} />
+            </span>
+            <span style={{ flex:1, minWidth:0 }}>
+              <span style={{ display:'block', fontSize:12.5, fontWeight: isActive('/perfil') ? 700 : 500, color: isActive('/perfil') ? 'var(--accent-dark)' : 'var(--text-2)', lineHeight:1.2 }}>Perfil</span>
+              <span style={{ display:'block', fontSize:10, color:'var(--text-xmuted)', marginTop:1 }}>Mi cuenta</span>
+            </span>
+          </Link>
+          {userRole === 'admin' && (
+            <Link
+              to="/usuarios"
+              onClick={onClose}
+              style={{
+                ...s.item,
+                background: isActive('/usuarios') ? 'var(--side-active-bg)' : 'transparent',
+              }}
+            >
+              <span style={{
+                ...s.iconBox,
+                background: isActive('/usuarios') ? 'var(--accent)' : 'var(--surface-2)',
+                color: isActive('/usuarios') ? '#fff' : 'var(--text-muted)',
+              }}>
+                <Users size={14} strokeWidth={isActive('/usuarios') ? 2.2 : 1.8} />
+              </span>
+              <span style={{ flex:1, minWidth:0 }}>
+                <span style={{ display:'block', fontSize:12.5, fontWeight: isActive('/usuarios') ? 700 : 500, color: isActive('/usuarios') ? 'var(--accent-dark)' : 'var(--text-2)', lineHeight:1.2 }}>Usuarios</span>
+                <span style={{ display:'block', fontSize:10, color:'var(--text-xmuted)', marginTop:1 }}>Gestión de usuarios</span>
+              </span>
+            </Link>
+          )}
+        </div>
       </nav>
     </aside>
   );

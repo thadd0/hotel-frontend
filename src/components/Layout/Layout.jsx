@@ -10,13 +10,11 @@ export default function Layout() {
 
   return (
     <div className="app-layout">
-      {/* Mobile overlay */}
+      {/* Mobile overlay solo para sidebar */}
       {sidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
-      {userSidebarOpen && (
-        <div className="user-sidebar-overlay" onClick={() => setUserSidebarOpen(false)} />
-      )}
+      {/* Eliminado overlay para userSidebar (dropdown de perfil) */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <UserSidebar open={userSidebarOpen} onClose={() => setUserSidebarOpen(false)} />
       <div className="app-main">
