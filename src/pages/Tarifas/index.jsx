@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
-import { RSelect, SearchInput, Table, Btn, Field, Modal, ConfirmDialog, EmptyState, Pagination, EditBtn, DeleteBtn, useToast } from '../../components/UI/index.jsx';
+import { RSelect, SearchInput, Table, Btn, Field, Modal, ConfirmDialog, Card, EmptyState, Pagination, EditBtn, DeleteBtn, PageHeader, tdStyle, filterLabel, inputStyle, useToast } from '../../components/UI/index.jsx';
 import { Plus, DollarSign } from 'lucide-react';
+import { sanitizeDecimal } from '../../utils/formHelpers';
 import styles from './Tarifas.module.css';
 
 const PER_PAGE = 12;
@@ -11,7 +12,6 @@ export default function Tarifas() {
   const addToast = useToast();
   const isAdmin = userRole === 'admin';
 
-  const [filterTipoHab, setFilterTipoHab] = useState('');
   const [filterTipoAlq, setFilterTipoAlq] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -22,13 +22,12 @@ export default function Tarifas() {
   const [errors, setErrors] = useState({});
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [incrementoPorcentaje, setIncrementoPorcentaje] = useState('');
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Filter tarifas
   const filtered = useMemo(() => {
     let result = tarifas;
-    if (filterTipoHab && filterTipoHab !== '0') {
-      result = result.filter(t => t.tipoHabitacion?.id === parseInt(filterTipoHab));
-    }
     if (filterTipoAlq && filterTipoAlq !== '0') {
       result = result.filter(t => t.tipoAlquiler?.id === parseInt(filterTipoAlq));
     }
@@ -41,7 +40,7 @@ export default function Tarifas() {
       );
     }
     return result;
-  }, [tarifas, filterTipoHab, filterTipoAlq, search]);
+  }, [tarifas, filterTipoAlq, search]);
 
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
@@ -64,18 +63,7 @@ export default function Tarifas() {
   };
 
   const handlePrecioChange = (rawValue) => {
-    const normalized = String(rawValue || '').replace(',', '.');
-    const cleaned = normalized.replace(/[^\d.]/g, '');
-    const parts = cleaned.split('.');
-    const safe = parts.length > 2
-      ? `${parts[0]}.${parts.slice(1).join('')}`
-      : cleaned;
-    const [intPart = '', decPart = ''] = safe.split('.');
-    const hasDecimalPoint = safe.includes('.');
-    const limited = hasDecimalPoint
-      ? `${intPart}.${decPart.slice(0, 2)}`
-      : intPart;
-    setForm((prev) => ({ ...prev, precio: limited }));
+    setForm((prev) => ({ ...prev, precio: sanitizeDecimal(rawValue) }));
   };
 
   const validate = () => {
@@ -121,6 +109,7 @@ export default function Tarifas() {
       return;
     }
 
+    setSubmitting(true);
     try {
       editId ? await updateTarifa(editId, payload) : await addTarifa(payload);
       addToast(editId ? 'Tarifa actualizada' : 'Tarifa creada', 'success');
@@ -128,6 +117,8 @@ export default function Tarifas() {
     } catch (error) {
       const backendMessage = error?.response?.data?.message;
       addToast(backendMessage || 'Error al guardar la tarifa', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -148,6 +139,12 @@ export default function Tarifas() {
       addToast('Ingrese un porcentaje válido mayor a 0', 'error');
       return;
     }
+    setBulkConfirmOpen(true);
+  };
+
+  const confirmIncrementoMasivo = async () => {
+    setBulkConfirmOpen(false);
+    const porcentaje = Number(incrementoPorcentaje);
     try {
       await incrementarTarifasPorcentaje(porcentaje);
       addToast('Tarifas incrementadas correctamente', 'success');
@@ -159,55 +156,40 @@ export default function Tarifas() {
     }
   };
 
-  const tipoHabOptions = [
-    { value: '0', label: 'Todos los Tipos Hab.' },
-    ...tiposHabitacion.map(t => ({ value: String(t.id), label: t.nombre })),
-  ];
-
   const tipoAlqOptions = [
     { value: '0', label: 'Todos los Tipos Alq.' },
     ...tiposAlquiler.map(t => ({ value: String(t.id), label: t.nombre })),
   ];
 
   return (
-    <div className={styles.tarifasPage}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>Tarifas</h1>
+    <div className="page-anim">
+      <PageHeader title="Tarifas" subtitle={`Precios por tipo de habitación y alquiler · ${filtered.length}`}>
         {isAdmin && (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <>
             <Btn variant="ghost" onClick={() => setBulkModalOpen(true)}>
               Aumentar %
             </Btn>
-            <Btn icon={<Plus size={14} />} className={styles.crudNew} onClick={openNew}>
+            <Btn icon={<Plus size={14} />} onClick={openNew}>
               Nueva Tarifa
             </Btn>
-          </div>
+          </>
         )}
-      </div>
+      </PageHeader>
 
-      <div className={styles.filtersRow}>
-        <div className={styles.filterField}>
-          <label className={styles.filterLabel}>Tipo de Habitación</label>
-          <RSelect value={filterTipoHab || '0'} onValueChange={setFilterTipoHab} options={tipoHabOptions} />
+      <Card padding="12px 16px" style={{ marginBottom: 18 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label style={filterLabel}>Buscar</label>
+            <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Precio, tipo…" />
+          </div>
+          <div>
+            <label style={filterLabel}>Tipo de Alquiler</label>
+            <RSelect value={filterTipoAlq || '0'} onValueChange={v => { setFilterTipoAlq(v); setPage(1); }} options={tipoAlqOptions} />
+          </div>
         </div>
-        <div className={styles.filterField}>
-          <label className={styles.filterLabel}>Tipo de Alquiler</label>
-          <RSelect value={filterTipoAlq || '0'} onValueChange={setFilterTipoAlq} options={tipoAlqOptions} />
-        </div>
-        <div className={styles.filterField}>
-          <label className={styles.filterLabel}>Buscar</label>
-          <SearchInput value={search} onChange={setSearch} placeholder="Precio, tipo..." />
-        </div>
-      </div>
+      </Card>
 
-      <div className={styles.statsRow}>
-        <span className={styles.statsCount}>{filtered.length}</span>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          {filtered.length} tarifa{filtered.length !== 1 ? 's' : ''} encontrada{filtered.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      <div className={styles.tableContainer}>
+      <Card>
         {paged.length === 0 ? (
           <EmptyState
             message="No hay tarifas que coincidan con los filtros"
@@ -216,13 +198,17 @@ export default function Tarifas() {
         ) : (
           <Table headers={['Tipo Habitación', 'Tipo Alquiler', 'Precio', '']}>
             {paged.map(tarifa => (
-              <tr key={tarifa.id} className={styles.tr}>
-                <td className={styles.td}>{tarifa.tipoHabitacion?.nombre || '—'}</td>
-                <td className={styles.td}>{tarifa.tipoAlquiler?.nombre || '—'}</td>
-                <td className={`${styles.td} ${styles.precioCell}`} style={{ textAlign: 'right', width: '160px' }}>
+              <tr key={tarifa.id}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                style={{ transition: 'background .12s' }}
+              >
+                <td style={tdStyle}>{tarifa.tipoHabitacion?.nombre || '—'}</td>
+                <td style={tdStyle}>{tarifa.tipoAlquiler?.nombre || '—'}</td>
+                <td style={{ ...tdStyle, textAlign: 'right', width: 160 }}>
                   <strong style={{ fontSize: 16, color: 'var(--accent-dark)' }}>S/ {Number(tarifa.precio).toFixed(2)}</strong>
                 </td>
-                <td className={`${styles.td} ${styles.actionsCell}`}>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>
                   {isAdmin && (
                     <div style={{ display: 'flex', gap: 6 }}>
                       <EditBtn onClick={() => openEdit(tarifa)} />
@@ -234,21 +220,17 @@ export default function Tarifas() {
             ))}
           </Table>
         )}
-        <div className={styles.paginationContainer}>
+        <div style={{ padding: '0 16px 4px' }}>
           <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
         </div>
-      </div>
+      </Card>
 
       <Modal open={modalOpen && isAdmin} onOpenChange={setModalOpen} title={editId ? 'Editar Tarifa' : 'Nueva Tarifa'}>
         <Field label="Tipo de Habitación" error={errors.tipoHabitacionId} required>
           <select
             value={form.tipoHabitacionId}
             onChange={e => setForm({ ...form, tipoHabitacionId: e.target.value })}
-            style={{
-              width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md)',
-              border: '1px solid var(--border)', fontSize: 14,
-              color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
-            }}
+            style={inputStyle}
           >
             <option value="">Seleccione...</option>
             {tiposHabitacion.map(t => <option key={t.id} value={String(t.id)}>{t.nombre}</option>)}
@@ -259,11 +241,7 @@ export default function Tarifas() {
           <select
             value={form.tipoAlquilerId}
             onChange={e => setForm({ ...form, tipoAlquilerId: e.target.value })}
-            style={{
-              width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md)',
-              border: '1px solid var(--border)', fontSize: 14,
-              color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
-            }}
+            style={inputStyle}
           >
             <option value="">Seleccione...</option>
             {tiposAlquiler.map(t => <option key={t.id} value={String(t.id)}>{t.nombre}</option>)}
@@ -286,7 +264,7 @@ export default function Tarifas() {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Btn variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Btn>
-          <Btn onClick={handleSubmit}>{editId ? 'Actualizar' : 'Crear'}</Btn>
+          <Btn onClick={handleSubmit} disabled={submitting}>{editId ? 'Actualizar' : 'Crear'}</Btn>
         </div>
       </Modal>
 
@@ -320,6 +298,16 @@ export default function Tarifas() {
         onOpenChange={setConfirmId}
         onConfirm={handleDelete}
         message="¿Eliminar esta tarifa? Esta acción no se puede deshacer."
+      />
+
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        onOpenChange={setBulkConfirmOpen}
+        onConfirm={confirmIncrementoMasivo}
+        title="Incremento masivo"
+        confirmLabel="Sí, aplicar"
+        variant="primary"
+        message={`¿Confirmar aumento de ${incrementoPorcentaje}% en TODAS las tarifas? Esta acción no se puede deshacer.`}
       />
     </div>
   );

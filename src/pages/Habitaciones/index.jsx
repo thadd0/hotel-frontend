@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useHotel } from '../../context/HotelContext';
-import { ESTADOS } from '../../data/initialData';
+import { ESTADOS } from '../../constants/estados';
 import {
   Btn, Badge, Card, Table, tdStyle, EditBtn, DeleteBtn,
   Modal, ConfirmDialog, RSelect, SearchInput,
-  EmptyState, Pagination, Field, inputStyle, inputFocus, inputBlur, SwitchField,
-  useToast, PopoverMenu,
+  EmptyState, Pagination, Field, inputStyle, inputFocus, inputBlur,
+  useToast, PopoverMenu, PageHeader, filterLabel,
 } from '../../components/UI/index.jsx';
 import { Plus, BedDouble } from 'lucide-react';
 
@@ -17,14 +17,16 @@ export default function Habitaciones() {
   const readOnly = userRole === 'recepcion';
   const addToast = useToast();
   const [modalOpen, setModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [editId,    setEditId]    = useState(null);
   const [form,      setForm]      = useState(empty);
   const [errors,    setErrors]    = useState({});
   const [confirmId, setConfirmId] = useState(null);
+  const [estadoConfirm, setEstadoConfirm] = useState(null); // { id, estado, msg }
   const [page,      setPage]      = useState(1);
   const [fEstado,   setFEstado]   = useState('');
   const [fPiso,     setFPiso]     = useState('');
-  const [fTipo,     setFTipo]     = useState('');
+
   const [busqueda,  setBusqueda]  = useState('');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -61,12 +63,16 @@ export default function Habitaciones() {
       estado: form.estado,
       tipoHabitacion: { id: Number(form.tipoHabitacionId) },
     };
+    setSubmitting(true);
     try {
       editId ? await updateHabitacion(editId, payload) : await addHabitacion(payload);
       addToast(editId ? 'Habitación actualizada' : 'Habitación creada', 'success');
       setModalOpen(false);
-    } catch {
-      addToast('Error al guardar la habitación', 'error');
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al guardar la habitación', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -74,33 +80,48 @@ export default function Habitaciones() {
     const tipoNombre = h.tipoHabitacion?.nombre || '';
     return (!fEstado || h.estado === fEstado)
       && (!fPiso    || String(h.piso) === fPiso)
-      && (!fTipo    || String(h.tipoHabitacion?.id) === fTipo)
       && (!busqueda || h.numero.toLowerCase().includes(busqueda.toLowerCase()) || tipoNombre.toLowerCase().includes(busqueda.toLowerCase()));
   });
 
   const paged = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
 
   const ESTADO_KEYS = Object.keys(ESTADOS);
-  const handleEstadoChange = async (id, nuevoEstado) => {
+  const handleEstadoChange = (id, nuevoEstado) => {
+    const hab = habitaciones.find(h => h.id === id);
+    setEstadoConfirm({ id, estado: nuevoEstado, msg: `¿Cambiar estado de Hab. ${hab?.numero || ''} a ${nuevoEstado}?` });
+  };
+  const confirmEstadoChange = async () => {
+    if (!estadoConfirm) return;
     try {
-      await cambiarEstado(id, nuevoEstado);
-      addToast(`Estado cambiado a ${nuevoEstado}`, 'success');
-    } catch {
-      addToast('Error al cambiar el estado', 'error');
+      await cambiarEstado(estadoConfirm.id, estadoConfirm.estado);
+      addToast(`Estado cambiado a ${estadoConfirm.estado}`, 'success');
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al cambiar el estado', 'error');
     }
+    setEstadoConfirm(null);
   };
 
   return (
     <div className="page-anim">
+      <PageHeader title="Habitaciones" subtitle={`Gestión de habitaciones · ${filtered.length}`}>
+        {!readOnly && <Btn icon={<Plus size={14}/>} onClick={openNew}>Nueva habitación</Btn>}
+      </PageHeader>
+
       {/* Filtros */}
       <Card padding="12px 16px" style={{ marginBottom:18 }}>
-        <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
-          <RSelect value={fEstado}  onValueChange={v=>{setFEstado(v); setPage(1);}} placeholder="Estado" options={ESTADO_KEYS.map(k=>({value:k,label:k}))} />
-          <RSelect value={fPiso}    onValueChange={v=>{setFPiso(v);   setPage(1);}} placeholder="Piso" options={pisos.map(p=>({value:String(p),label:`Piso ${p}`}))} />
-          <RSelect value={fTipo}    onValueChange={v=>{setFTipo(v);   setPage(1);}} placeholder="Tipo" options={tiposHabitacion.map(t=>({value:String(t.id),label:t.nombre}))} />
-          <SearchInput value={busqueda} onChange={v=>{setBusqueda(v); setPage(1);}} placeholder="Buscar..." />
-          <div style={{ marginLeft:'auto' }}>
-            {!readOnly && <Btn icon={<Plus size={14}/>} onClick={openNew}>Nueva habitación</Btn>}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
+          <div style={{ flex:1, minWidth:180 }}>
+            <label style={filterLabel}>Buscar</label>
+            <SearchInput value={busqueda} onChange={v=>{setBusqueda(v); setPage(1);}} placeholder="Número de habitación…" />
+          </div>
+          <div>
+            <label style={filterLabel}>Estado</label>
+            <RSelect value={fEstado}  onValueChange={v=>{setFEstado(v); setPage(1);}} placeholder="Todos" options={ESTADO_KEYS.map(k=>({value:k,label:k}))} />
+          </div>
+          <div>
+            <label style={filterLabel}>Piso</label>
+            <RSelect value={fPiso}    onValueChange={v=>{setFPiso(v);   setPage(1);}} placeholder="Todos" options={pisos.map(p=>({value:String(p),label:`Piso ${p}`}))} />
           </div>
         </div>
       </Card>
@@ -201,15 +222,25 @@ export default function Habitaciones() {
             </Field>
             <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' }}>
               <Btn variant="ghost" onClick={()=>setModalOpen(false)}>Cancelar</Btn>
-              <Btn onClick={handleSubmit}>{editId?'Guardar cambios':'Crear habitación'}</Btn>
+              <Btn onClick={handleSubmit} disabled={submitting}>{editId?'Guardar cambios':'Crear habitación'}</Btn>
             </div>
           </Modal>
 
           <ConfirmDialog
             open={!!confirmId}
             onOpenChange={open=>!open&&setConfirmId(null)}
-            onConfirm={async ()=>{ try { await deleteHabitacion(confirmId); addToast('Habitación eliminada', 'info'); } catch { addToast('Error al eliminar la habitación', 'error'); } setConfirmId(null); }}
+            onConfirm={async ()=>{ try { await deleteHabitacion(confirmId); addToast('Habitación eliminada', 'info'); } catch (error) { const msg = error?.response?.data?.message; addToast(msg || 'Error al eliminar la habitación', 'error'); } setConfirmId(null); }}
             message="¿Eliminar esta habitación? Esta acción no se puede deshacer."
+          />
+
+          <ConfirmDialog
+            open={!!estadoConfirm}
+            onOpenChange={open=>!open&&setEstadoConfirm(null)}
+            onConfirm={confirmEstadoChange}
+            title="Cambiar estado"
+            message={estadoConfirm?.msg || ''}
+            confirmLabel="Sí, cambiar"
+            variant="primary"
           />
         </>
       )}

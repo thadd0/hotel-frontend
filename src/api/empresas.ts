@@ -10,16 +10,8 @@ export const getEmpresas = async (): Promise<EmpresaDTO[]> => {
   }
 };
 
-export const getEmpresa = async (id: number): Promise<EmpresaDTO> => {
-  return apiFetch(`/api/admin/empresas/${id}`);
-};
-
 export const getEmpresasRecepcion = async (): Promise<EmpresaDTO[]> => {
   return apiFetch('/api/recepcion/empresas');
-};
-
-export const getEmpresaRecepcion = async (id: number): Promise<EmpresaDTO> => {
-  return apiFetch(`/api/recepcion/empresas/${id}`);
 };
 
 export const postEmpresa = async (data: Omit<EmpresaDTO, 'id'>): Promise<EmpresaDTO> => {

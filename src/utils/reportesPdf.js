@@ -2,53 +2,140 @@ import { jsPDF } from 'jspdf';
 
 const BRAND_NAME = 'ARROYO Hospedaje';
 
-function writeHeader(doc, title, subtitle) {
-  const generatedAt = new Date().toLocaleString('es-PE');
+const DIAS_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const DIAS_LARGO = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+               'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+/* ─── Paleta de colores ─── */
+const C = {
+  accent:    [212, 134, 12],
+  accentDk:  [169, 107, 8],
+  green:     [22, 163, 74],
+  red:       [220, 38, 38],
+  blue:      [37, 99, 235],
+  dark:      [28, 25, 23],
+  mid:       [68, 64, 60],
+  muted:     [120, 113, 108],
+  line:      [214, 211, 209],
+  bg:        [250, 250, 249],
+  headerBg:  [212, 134, 12],
+  headerTxt: [255, 255, 255],
+};
+
+/* ─── Helpers responsivos (portrait / landscape) ─── */
+
+function writeHeader(doc, title, subtitle) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const now = new Date();
+  const dia = DIAS_LARGO[now.getDay()];
+  const dd = now.getDate();
+  const mes = MESES[now.getMonth()];
+  const yyyy = now.getFullYear();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  const generatedAt = `${dia} ${dd} de ${mes} de ${yyyy} — ${hh}:${mi}`;
+
+  /* Barra superior con color de marca */
+  doc.setFillColor(...C.accent);
+  doc.rect(0, 0, pageW, 28, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(255, 255, 255);
+  doc.text(BRAND_NAME, 14, 12);
+
+  /* Timestamp alineado a la derecha */
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(210, 245, 240);
+  doc.text(`Generado: ${generatedAt}`, pageW - 14, 18, { align: 'right' });
+
+  /* Título debajo de la barra */
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text(BRAND_NAME, 14, 14);
+  doc.setTextColor(...C.dark);
+  doc.text(title, 14, 38);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text(`Descargado: ${generatedAt}`, 196, 14, { align: 'right' });
-
-  doc.setDrawColor(200);
-  doc.line(14, 18, 196, 18);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(title, 14, 26);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
   if (subtitle) {
-    doc.text(subtitle, 14, 32);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...C.muted);
+    doc.text(subtitle, 14, 44);
+    return 52;
   }
-
-  return subtitle ? 40 : 34;
+  return 46;
 }
 
-function drawTableHeader(doc, y, columns) {
-  doc.setFillColor(242, 242, 242);
-  doc.rect(14, y - 5, 182, 8, 'F');
+function drawTableHeader(doc, y, columns, fontSize = 8) {
+  const tableW = doc.internal.pageSize.getWidth() - 28;
+  doc.setFillColor(...C.headerBg);
+  doc.rect(14, y - 5, tableW, 8, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(fontSize);
+  doc.setTextColor(...C.headerTxt);
 
   let x = 14;
   columns.forEach((col) => {
-    doc.text(col.label, x + 2, y);
+    const align = col.align || 'left';
+    const textX = align === 'right' ? x + col.width - 3 : x + 2;
+    doc.text(col.label.toUpperCase(), textX, y, align === 'right' ? { align: 'right' } : undefined);
     x += col.width;
   });
 
+  doc.setTextColor(0);
   return y + 8;
 }
 
+function drawRowBg(doc, y, index, rowH = 8) {
+  const tableW = doc.internal.pageSize.getWidth() - 28;
+  if (index % 2 === 0) {
+    doc.setFillColor(248, 250, 249);
+    doc.rect(14, y - 4.5, tableW, rowH, 'F');
+  }
+}
+
 function formatDateOnly(value) {
-  if (!value) return '-';
+  if (!value) return '—';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '-';
+  if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('es-PE');
+}
+
+function formatDateDay(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dia = DIAS_CORTO[d.getDay()];
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dia} ${dd}/${mm}/${yyyy}`;
+}
+
+function formatDateTimeDay(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dia = DIAS_CORTO[d.getDay()];
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${dia} ${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
 }
 
 function normalizeDateForFilename() {
@@ -59,144 +146,712 @@ function normalizeDateForFilename() {
   return `${y}${m}${day}`;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   REPORTE DE CAJA
+   ═══════════════════════════════════════════════════════════ */
 export function descargarReporteCajaMovimientos(movimientos, filtros = {}) {
   const doc = new jsPDF();
-  const periodo = filtros?.desde && filtros?.hasta
-    ? `Periodo: ${filtros.desde} a ${filtros.hasta}`
-    : 'Periodo: Vista actual';
+  const isAdminExport = filtros?.isAdmin !== false;
   const resumen = filtros?.resumen || {};
-  let y = writeHeader(doc, 'Reporte de Caja', periodo);
+  let y = writeHeader(doc, 'Reporte de Caja', null);
+
+  /* ─── Filtros aplicados ─── */
+  const filtroLines = [];
+  if (filtros?.desde && filtros?.hasta) filtroLines.push(`Periodo: ${filtros.desde} — ${filtros.hasta}`);
+  else if (filtros?.desde) filtroLines.push(`Desde: ${filtros.desde}`);
+  else if (filtros?.hasta) filtroLines.push(`Hasta: ${filtros.hasta}`);
+  else filtroLines.push('Periodo: Todo');
+  if (filtros?.filtroTipo) filtroLines.push(`Tipo: ${filtros.filtroTipo === 'INGRESO' ? 'Ingreso' : 'Egreso'}`);  
+  if (filtros?.filtroEmpresa) filtroLines.push(`Empresa: ${filtros.filtroEmpresa}`);
+  if (filtros?.search) filtroLines.push(`Búsqueda: "${filtros.search}"`);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...C.muted);
+  filtroLines.forEach(line => {
+    doc.text(line, 14, y);
+    y += 4.5;
+  });
+  y += 4;
 
   const totalIngresos = Number(resumen.totalIngresos || 0);
   const totalEgresos = Number(resumen.totalEgresos || 0);
   const balance = Number(resumen.balance || 0);
   const movimientosCount = Number(resumen.cantidadMovimientos || 0);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('Resumen', 14, y);
-
-  const summaryY = y + 4;
-  const summaryCols = [
-    { label: 'Total Ingresos', value: `S/ ${totalIngresos.toFixed(2)}`, color: [15, 138, 84] },
-    { label: 'Total Egresos', value: `S/ ${totalEgresos.toFixed(2)}`, color: [214, 69, 65] },
-    { label: 'Balance', value: `S/ ${balance.toFixed(2)}`, color: balance >= 0 ? [17, 138, 178] : [214, 69, 65] },
-    { label: 'Movimientos', value: String(movimientosCount), color: [64, 64, 64] },
+  /* Tarjetas de resumen */
+  const cardW = 43;
+  const cardH = 22;
+  const cardGap = 2;
+  const cards = [
+    { label: 'INGRESOS',    value: `S/ ${totalIngresos.toFixed(2)}`, color: C.green },
+    { label: 'EGRESOS',     value: `S/ ${totalEgresos.toFixed(2)}`,  color: C.red },
+    { label: 'BALANCE',     value: `S/ ${balance.toFixed(2)}`,       color: balance >= 0 ? C.accent : C.red },
+    { label: 'MOVIMIENTOS', value: String(movimientosCount),          color: C.mid },
   ];
 
-  const cellWidth = 45.5;
-  const cellHeight = 20;
-  summaryCols.forEach((item, index) => {
-    const x = 14 + (index * cellWidth);
-    doc.setFillColor(248, 248, 248);
-    doc.setDrawColor(220);
-    doc.roundedRect(x, summaryY, cellWidth - 1.5, cellHeight, 1.5, 1.5, 'FD');
-
+  cards.forEach((card, i) => {
+    const x = 14 + i * (cardW + cardGap);
+    /* Fondo sutil */
+    doc.setFillColor(248, 250, 249);
+    doc.setDrawColor(...C.line);
+    doc.roundedRect(x, y, cardW, cardH, 2, 2, 'FD');
+    /* Línea de color arriba */
+    doc.setFillColor(...card.color);
+    doc.rect(x, y, cardW, 2.5, 'F');
+    /* Etiqueta */
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(95);
-    doc.text(item.label.toUpperCase(), x + 2, summaryY + 6);
-
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.muted);
+    doc.text(card.label, x + 3, y + 9);
+    /* Valor */
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.setTextColor(item.color[0], item.color[1], item.color[2]);
-    doc.text(item.value, x + 2, summaryY + 14);
+    doc.setTextColor(...card.color);
+    doc.text(card.value, x + 3, y + 17);
   });
 
   doc.setTextColor(0);
-  y = summaryY + cellHeight + 10;
+  y += cardH + 10;
 
   const columns = [
-    { label: 'Fecha', width: 38 },
-    { label: 'Descripcion', width: 104 },
-    { label: 'Monto', width: 40 },
+    { label: 'Fecha', width: 34 },
+    { label: 'Tipo', width: 16 },
+    { label: 'Concepto', width: 52 },
+    { label: 'Cliente', width: 38 },
+    { label: 'Método', width: 24 },
+    { label: 'Monto', width: 18, align: 'right' },
   ];
 
   y = drawTableHeader(doc, y, columns);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
 
-  (movimientos || []).forEach((row) => {
+  (movimientos || []).forEach((row, idx) => {
     if (y > 275) {
       doc.addPage();
-      y = writeHeader(doc, 'Reporte de Caja', periodo);
+      y = 20;
       y = drawTableHeader(doc, y, columns);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
     }
 
-    const fecha = String(row?.fecha || '-');
-    const descripcion = String(row?.descripcion || '-').slice(0, 68);
-    const monto = String(row?.monto || '-');
+    drawRowBg(doc, y, idx);
 
+    const fecha = formatDateDay(row?.fecha);
+    const tipo = String(row?.tipo || '—');
+    const descripcion = String(row?.concepto || '—').slice(0, 30);
+    const esCorporativo = Boolean(row?.nombreEmpresa && row.nombreEmpresa !== '—');
+    const ocultar = !isAdminExport && esCorporativo;
+    const clienteNombre = String(row?.nombreCliente || '—').slice(0, 20);
+    const empresaNom = esCorporativo ? String(row.nombreEmpresa).slice(0, 18) : '';
+    const metodo = (ocultar || esCorporativo) ? '' : String(row?.metodoPago || '—');
+    const monto = Number(row?.monto || 0);
+    const montoStr = ocultar ? '—' : `${tipo === 'EGRESO' ? '-' : ''}S/ ${monto.toFixed(2)}`;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.mid);
     doc.text(fecha, 16, y);
-    doc.text(descripcion, 54, y);
-    doc.text(monto, 194, y, { align: 'right' });
-    doc.setDrawColor(232);
-    doc.line(14, y + 2, 196, y + 2);
-    y += 7;
+
+    const isEgreso = tipo === 'EGRESO';
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...(isEgreso ? C.red : C.green));
+    doc.text(isEgreso ? 'Egreso' : 'Ingreso', 50, y);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.dark);
+    doc.text(descripcion, 66, y);
+
+    /* Cliente + empresa debajo */
+    doc.setTextColor(...C.dark);
+    doc.text(clienteNombre, 118, y);
+    if (empresaNom) {
+      doc.setFontSize(6.5);
+      doc.setTextColor(...C.muted);
+      doc.text(empresaNom, 118, y + 3.5);
+      doc.setFontSize(8.5);
+    }
+
+    doc.setTextColor(...C.muted);
+    doc.text(metodo, 156, y);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...(isEgreso ? C.red : C.dark));
+    doc.text(montoStr, 196, y, { align: 'right' });
+
+    doc.setDrawColor(...C.line);
+    doc.line(14, y + (empresaNom ? 4.5 : 2.5), 196, y + (empresaNom ? 4.5 : 2.5));
+    y += empresaNom ? 9 : 7;
   });
 
   if (!movimientos || movimientos.length === 0) {
-    doc.setTextColor(110);
+    doc.setTextColor(...C.muted);
     doc.text('No hay movimientos para exportar con los filtros actuales.', 14, y + 4);
     doc.setTextColor(0);
+  }
+
+  /* Pie de página */
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(...C.muted);
+    doc.text(`${BRAND_NAME} — Página ${i} de ${pageCount}`, 105, 290, { align: 'center' });
   }
 
   doc.save(`caja-movimientos-${normalizeDateForFilename()}.pdf`);
 }
 
+/* ═══════════════════════════════════════════════════════════
+   REPORTE DE ALQUILERES ACTIVOS  (landscape A4)
+   ═══════════════════════════════════════════════════════════ */
 export function descargarReporteAlquileresActivos(alquileres) {
-  const doc = new jsPDF();
-  let y = writeHeader(doc, 'Reporte de Alquileres Activos', 'Vista actual de alquileres activos');
+  const doc = new jsPDF('l');                                  // landscape A4
+  const pageW = doc.internal.pageSize.getWidth();              // 297
+  const pageH = doc.internal.pageSize.getHeight();             // 210
+  const totalActivos = (alquileres || []).length;
+  let y = writeHeader(
+    doc,
+    'Reporte de Alquileres Activos',
+    `${totalActivos} alquiler${totalActivos !== 1 ? 'es' : ''} activo${totalActivos !== 1 ? 's' : ''} al momento de la descarga`,
+  );
 
+  /* Columnas: 24+72+46+46+61 = 249 + margen ajustado para 269 */
   const columns = [
-    { label: 'Habitacion', width: 20 },
-    { label: 'Cliente', width: 30 },
-    { label: 'Empresa', width: 30 },
-    { label: 'Fecha Ingreso', width: 28 },
-    { label: 'Fecha Prevista Salida', width: 44 },
-    { label: 'Firma', width: 30 },
+    { label: 'Hab.',     width: 24 },
+    { label: 'Cliente',  width: 80 },
+    { label: 'Ingreso',  width: 52 },
+    { label: 'Salida',   width: 52 },
+    { label: 'Firma',    width: 61 },
   ];
 
-  y = drawTableHeader(doc, y, columns);
+  y = drawTableHeader(doc, y, columns, 9);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  /* Posiciones X de cada columna (14 base + acumulado + 2 padding) */
+  const X = { hab: 16, cli: 40, ing: 120, sal: 172, firma: 224 };
 
-  (alquileres || []).forEach((row) => {
-    if (y > 275) {
+  doc.setFontSize(10);
+
+  (alquileres || []).forEach((row, idx) => {
+    const tipo = row?.tipoAlquilerNombre || '';
+    const empresa = row?.empresaNombre || '';
+    const hasSecondLine = tipo || empresa;
+    const rowH = hasSecondLine ? 11 : 8;
+
+    if (y > pageH - 18) {
       doc.addPage();
-      y = writeHeader(doc, 'Reporte de Alquileres Activos', 'Vista actual de alquileres activos');
-      y = drawTableHeader(doc, y, columns);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
+      y = writeHeader(doc, 'Reporte de Alquileres Activos', null);
+      y = drawTableHeader(doc, y, columns, 9);
+      doc.setFontSize(10);
     }
 
-    const habitacion = String(row?.numeroHabitacion || '-').slice(0, 10);
-    const cliente = String(row?.nombreCliente || '-').slice(0, 16);
-    const empresa = String(row?.empresaNombre || '-').slice(0, 16);
-    const ingreso = formatDateOnly(row?.fechaIngreso);
-    const salida = formatDateOnly(row?.fechaPrevista);
+    drawRowBg(doc, y, idx, rowH);
 
-    doc.text(habitacion, 16, y);
-    doc.text(cliente, 36, y);
-    doc.text(empresa, 66, y);
-    doc.text(ingreso, 96, y);
-    doc.text(salida, 124, y);
-    doc.rect(164, y - 4, 28, 6);
+    const habitacion = String(row?.numeroHabitacion || '—');
+    const cliente = String(row?.nombreCliente || '—').slice(0, 42);
+    const ingreso = formatDateTimeDay(row?.fechaIngreso);
+    const salida = formatDateTimeDay(row?.fechaPrevista);
 
-    doc.setDrawColor(232);
-    doc.line(14, y + 2, 196, y + 2);
-    y += 8;
+    /* Habitación + tipo como segunda línea */
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...C.accent);
+    doc.text(habitacion, X.hab, y);
+    if (tipo) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...C.muted);
+      doc.text(tipo, X.hab, y + 4);
+      doc.setFontSize(10);
+    }
+
+    /* Cliente + empresa debajo */
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.dark);
+    doc.text(cliente, X.cli, y);
+    if (empresa) {
+      doc.setFontSize(7);
+      doc.setTextColor(...C.muted);
+      doc.text(empresa.slice(0, 40), X.cli, y + 4);
+      doc.setFontSize(10);
+    }
+
+    doc.setTextColor(...C.mid);
+    doc.text(ingreso, X.ing, y);
+    doc.text(salida, X.sal, y);
+
+    /* Cuadro de firma */
+    doc.setDrawColor(...C.line);
+    doc.rect(X.firma, y - 4, 55, 6);
+
+    /* Separador entre filas */
+    const lineY = tipo ? y + 5.5 : y + 2.5;
+    doc.setDrawColor(...C.line);
+    doc.line(14, lineY, pageW - 14, lineY);
+    y += rowH;
   });
 
   if (!alquileres || alquileres.length === 0) {
-    doc.setTextColor(110);
+    doc.setTextColor(...C.muted);
     doc.text('No hay alquileres activos para exportar en la vista actual.', 14, y + 4);
     doc.setTextColor(0);
   }
 
+  /* Pie de página centrado en landscape */
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(...C.muted);
+    doc.text(`${BRAND_NAME} — Página ${i} de ${pageCount}`, pageW / 2, pageH - 10, { align: 'center' });
+  }
+
   doc.save(`alquileres-activos-${normalizeDateForFilename()}.pdf`);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOLETA DE CHECKOUT  (portrait A4)
+   ═══════════════════════════════════════════════════════════ */
+export function generarBoletaCheckout(alquiler, consumos = [], movimientos = []) {
+  const doc = new jsPDF();
+  const pageW = doc.internal.pageSize.getWidth();
+
+  let y = writeHeader(doc, 'Comprobante de Estadía', null);
+
+  /* ─── Datos del huésped ─── */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.accent);
+  doc.text('DATOS DEL HUÉSPED', 14, y);
+  y += 6;
+
+  const guestRows = [
+    ['Cliente', String(alquiler?.nombreCliente || '—')],
+    ['Habitación', String(alquiler?.numeroHabitacion || '—')],
+    ['Tipo', String(alquiler?.tipoAlquilerNombre || '—')],
+    ['Empresa', String(alquiler?.empresaNombre || '—')],
+    ['Ingreso', formatDateTime(alquiler?.fechaIngreso)],
+    ['Salida', formatDateTime(alquiler?.fechaSalida || alquiler?.fechaPrevista)],
+  ];
+
+  doc.setFontSize(9.5);
+  guestRows.forEach(([label, value]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.mid);
+    doc.text(`${label}:`, 14, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.dark);
+    doc.text(value, 50, y);
+    y += 5.5;
+  });
+
+  y += 6;
+
+  /* ─── Detalle de cargos ─── */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.accent);
+  doc.text('DETALLE DE CARGOS', 14, y);
+  y += 6;
+
+  const itemCols = [
+    { label: 'Concepto', width: 80 },
+    { label: 'Cant.', width: 18 },
+    { label: 'P.Unit', width: 30, align: 'right' },
+    { label: 'Subtotal', width: 30, align: 'right' },
+  ];
+
+  y = drawTableHeader(doc, y, itemCols);
+
+  /* Fila base: alquiler */
+  const precioFijado = Number(alquiler?.subTotal || 0);
+  drawRowBg(doc, y, 0);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.dark);
+  doc.text('Alquiler de habitación', 16, y);
+  doc.setTextColor(...C.mid);
+  doc.text('1', 96, y);
+  doc.setTextColor(...C.dark);
+  doc.text(`S/ ${precioFijado.toFixed(2)}`, 140, y, { align: 'right' });
+  doc.text(`S/ ${precioFijado.toFixed(2)}`, 170, y, { align: 'right' });
+  doc.setDrawColor(...C.line);
+  doc.line(14, y + 3, 172, y + 3);
+  y += 7;
+
+  /* Consumos adicionales */
+  (consumos || []).forEach((item, idx) => {
+    if (y > 260) {
+      doc.addPage();
+      y = 20;
+    }
+    drawRowBg(doc, y, idx + 1);
+    const desc = String(item?.descripcion || '—').slice(0, 45);
+    const cant = Number(item?.cantidad || 1);
+    const pu = Number(item?.precioUnit || 0);
+    const sub = Number(item?.subTotal || pu * cant);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...C.dark);
+    doc.text(desc, 16, y);
+    doc.setTextColor(...C.mid);
+    doc.text(String(cant), 96, y);
+    doc.setTextColor(...C.dark);
+    doc.text(`S/ ${pu.toFixed(2)}`, 140, y, { align: 'right' });
+    doc.text(`S/ ${sub.toFixed(2)}`, 170, y, { align: 'right' });
+    doc.setDrawColor(...C.line);
+    doc.line(14, y + 3, 172, y + 3);
+    y += 7;
+  });
+
+  y += 4;
+
+  /* ─── Totales ─── */
+  const totalPagado = Number(alquiler?.totalPagadoCaja || 0);
+  const pendiente = Number(alquiler?.pagoPendiente || 0);
+  const totalGeneral = precioFijado + (consumos || []).reduce((s, c) => s + Number(c?.subTotal || 0), 0);
+
+  const totales = [
+    ['Total cargos', `S/ ${totalGeneral.toFixed(2)}`, C.dark],
+    ['Pagado', `S/ ${totalPagado.toFixed(2)}`, C.green],
+    ['Pendiente', `S/ ${pendiente.toFixed(2)}`, pendiente > 0 ? C.red : C.green],
+  ];
+
+  totales.forEach(([label, value, color]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...C.mid);
+    doc.text(label, 110, y);
+    doc.setTextColor(...color);
+    doc.text(value, 170, y, { align: 'right' });
+    y += 6;
+  });
+
+  y += 6;
+
+  /* ─── Historial de pagos ─── */
+  if (movimientos && movimientos.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...C.accent);
+    doc.text('HISTORIAL DE PAGOS', 14, y);
+    y += 6;
+
+    const paymentCols = [
+      { label: 'Fecha', width: 42 },
+      { label: 'Concepto', width: 68 },
+      { label: 'Método', width: 28 },
+      { label: 'Monto', width: 30, align: 'right' },
+    ];
+
+    y = drawTableHeader(doc, y, paymentCols);
+
+    movimientos.forEach((m, idx) => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      drawRowBg(doc, y, idx);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...C.mid);
+      doc.text(formatDateTime(m?.fecha), 16, y);
+      doc.setTextColor(...C.dark);
+      doc.text(String(m?.concepto || '—').slice(0, 38), 58, y);
+      doc.setTextColor(...C.muted);
+      doc.text(String(m?.metodoPago || '—'), 126, y);
+      const monto = Number(m?.monto || 0);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...(m?.tipo === 'EGRESO' ? C.red : C.green));
+      doc.text(`S/ ${monto.toFixed(2)}`, 170, y, { align: 'right' });
+      y += 7;
+    });
+  }
+
+  y += 10;
+
+  /* ─── Pie ─── */
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(...C.muted);
+  doc.text('Gracias por su preferencia', pageW / 2, y, { align: 'center' });
+
+  /* Pie de página */
+  doc.setFontSize(7);
+  doc.text(`${BRAND_NAME} — Comprobante generado automáticamente`, pageW / 2, 290, { align: 'center' });
+
+  doc.save(`boleta-hab${alquiler?.numeroHabitacion || 'X'}-${normalizeDateForFilename()}.pdf`);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CIERRE DE CAJA  (portrait A4)
+   ═══════════════════════════════════════════════════════════ */
+export function generarCierreCaja(movimientos, resumen = {}, periodo = '') {
+  const doc = new jsPDF();
+  const pageW = doc.internal.pageSize.getWidth();
+  let y = writeHeader(doc, 'Cierre de Caja', periodo || 'Periodo actual');
+
+  const totalIngresos = Number(resumen.totalIngresos || 0);
+  const totalEgresos = Number(resumen.totalEgresos || 0);
+  const balance = Number(resumen.balance || 0);
+
+  /* ─── Resumen por método de pago ─── */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.accent);
+  doc.text('RESUMEN POR MÉTODO DE PAGO', 14, y);
+  y += 7;
+
+  const metodos = ['EFECTIVO', 'YAPE', 'TARJETA', 'TRANSFERENCIA'];
+  const byMetodo = {};
+  metodos.forEach(m => { byMetodo[m] = { ingresos: 0, egresos: 0 }; });
+  (movimientos || []).forEach(m => {
+    const met = m?.metodoPago || 'EFECTIVO';
+    if (!byMetodo[met]) byMetodo[met] = { ingresos: 0, egresos: 0 };
+    if (m?.tipo === 'INGRESO') byMetodo[met].ingresos += Number(m?.monto || 0);
+    else byMetodo[met].egresos += Number(m?.monto || 0);
+  });
+
+  /* Header de tabla resumen */
+  const resCols = [
+    { label: 'Método', width: 42 },
+    { label: 'Ingresos', width: 38, align: 'right' },
+    { label: 'Egresos', width: 38, align: 'right' },
+    { label: 'Neto', width: 38, align: 'right' },
+  ];
+  y = drawTableHeader(doc, y, resCols);
+
+  let idx = 0;
+  metodos.forEach(met => {
+    const d = byMetodo[met];
+    if (d.ingresos === 0 && d.egresos === 0) return;
+    drawRowBg(doc, y, idx);
+    const neto = d.ingresos - d.egresos;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...C.dark);
+    doc.text(met, 16, y);
+
+    doc.setTextColor(...C.green);
+    doc.text(`S/ ${d.ingresos.toFixed(2)}`, 92, y, { align: 'right' });
+
+    doc.setTextColor(...C.red);
+    doc.text(`S/ ${d.egresos.toFixed(2)}`, 130, y, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...(neto >= 0 ? C.accent : C.red));
+    doc.text(`S/ ${neto.toFixed(2)}`, 168, y, { align: 'right' });
+
+    doc.setDrawColor(...C.line);
+    doc.line(14, y + 3, 170, y + 3);
+    y += 7;
+    idx++;
+  });
+
+  /* Fila de totales */
+  y += 2;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...C.dark);
+  doc.text('TOTALES', 16, y);
+  doc.setTextColor(...C.green);
+  doc.text(`S/ ${totalIngresos.toFixed(2)}`, 92, y, { align: 'right' });
+  doc.setTextColor(...C.red);
+  doc.text(`S/ ${totalEgresos.toFixed(2)}`, 130, y, { align: 'right' });
+  doc.setTextColor(...(balance >= 0 ? C.accent : C.red));
+  doc.text(`S/ ${balance.toFixed(2)}`, 168, y, { align: 'right' });
+  y += 10;
+
+  /* ─── Detalle de movimientos ─── */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.accent);
+  doc.text('DETALLE DE MOVIMIENTOS', 14, y);
+  y += 7;
+
+  const detCols = [
+    { label: 'Fecha', width: 32 },
+    { label: 'Tipo', width: 18 },
+    { label: 'Concepto', width: 58 },
+    { label: 'Método', width: 26 },
+    { label: 'Monto', width: 30, align: 'right' },
+  ];
+  y = drawTableHeader(doc, y, detCols);
+
+  doc.setFontSize(8.5);
+  (movimientos || []).forEach((row, i) => {
+    if (y > 265) {
+      doc.addPage();
+      y = 20;
+      y = drawTableHeader(doc, y, detCols);
+      doc.setFontSize(8.5);
+    }
+
+    drawRowBg(doc, y, i);
+    const fecha = formatDateOnly(row?.fecha);
+    const tipo = String(row?.tipo || '—');
+    const concepto = String(row?.concepto || '—').slice(0, 35);
+    const metodo = String(row?.metodoPago || '—');
+    const monto = Number(row?.monto || 0);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.mid);
+    doc.text(fecha, 16, y);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...(tipo === 'EGRESO' ? C.red : C.green));
+    doc.text(tipo === 'EGRESO' ? 'Egreso' : 'Ingreso', 48, y);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.dark);
+    doc.text(concepto, 66, y);
+
+    doc.setTextColor(...C.muted);
+    doc.text(metodo, 124, y);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...(tipo === 'EGRESO' ? C.red : C.dark));
+    doc.text(`${tipo === 'EGRESO' ? '-' : ''}S/ ${monto.toFixed(2)}`, 178, y, { align: 'right' });
+
+    doc.setDrawColor(...C.line);
+    doc.line(14, y + 2.5, 180, y + 2.5);
+    y += 7;
+  });
+
+  /* ─── Firma ─── */
+  y += 20;
+  if (y > 260) { doc.addPage(); y = 40; }
+  doc.setDrawColor(...C.mid);
+  doc.line(50, y, 160, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.mid);
+  doc.text('Responsable de turno', pageW / 2, y + 5, { align: 'center' });
+
+  /* Pie de página */
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(...C.muted);
+    doc.text(`${BRAND_NAME} — Página ${i} de ${pageCount}`, pageW / 2, 290, { align: 'center' });
+  }
+
+  doc.save(`cierre-caja-${normalizeDateForFilename()}.pdf`);
+}
+
+/* ====================================================================
+   Reporte de movimientos por Empresa
+   ==================================================================== */
+export function generarReporteEmpresa(movimientos, empresaNombre, periodo = '') {
+  const doc = new jsPDF();
+  const pageW = doc.internal.pageSize.getWidth();
+  let y = writeHeader(doc, `Reporte — ${empresaNombre}`, periodo || 'Periodo actual');
+
+  const movsEmpresa = (movimientos || []).filter(m => m?.nombreEmpresa === empresaNombre);
+
+  /* ─── Resumen ─── */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.accent);
+  doc.text('RESUMEN DE MOVIMIENTOS', 14, y);
+  y += 8;
+
+  const totalIngresos = movsEmpresa.filter(m => m?.tipo !== 'EGRESO').reduce((s, m) => s + Number(m?.monto || 0), 0);
+  const totalEgresos = movsEmpresa.filter(m => m?.tipo === 'EGRESO').reduce((s, m) => s + Number(m?.monto || 0), 0);
+  const balance = totalIngresos - totalEgresos;
+
+  const resLabels = [
+    { label: 'Total Ingresos:', value: `S/ ${totalIngresos.toFixed(2)}`, color: C.green },
+    { label: 'Total Egresos:', value: `S/ ${totalEgresos.toFixed(2)}`, color: C.red },
+    { label: 'Balance:', value: `S/ ${balance.toFixed(2)}`, color: balance >= 0 ? C.accent : C.red },
+    { label: 'Movimientos:', value: String(movsEmpresa.length), color: C.dark },
+  ];
+  resLabels.forEach(r => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...C.mid);
+    doc.text(r.label, 16, y);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...r.color);
+    doc.text(r.value, 65, y);
+    y += 6;
+  });
+  y += 6;
+
+  /* ─── Detalle ─── */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.accent);
+  doc.text('DETALLE DE MOVIMIENTOS', 14, y);
+  y += 7;
+
+  const cols = [
+    { label: 'Fecha', width: 32 },
+    { label: 'Tipo', width: 18 },
+    { label: 'Hab.', width: 16 },
+    { label: 'Cliente', width: 40 },
+    { label: 'Concepto', width: 42 },
+    { label: 'Método', width: 24 },
+    { label: 'Monto', width: 28, align: 'right' },
+  ];
+  y = drawTableHeader(doc, y, cols);
+
+  doc.setFontSize(8.5);
+  movsEmpresa.forEach((row, i) => {
+    if (y > 265) {
+      doc.addPage();
+      y = 20;
+      y = drawTableHeader(doc, y, cols);
+      doc.setFontSize(8.5);
+    }
+
+    drawRowBg(doc, y, i);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.mid);
+    doc.text(formatDateOnly(row?.fecha), 16, y);
+
+    const tipo = String(row?.tipo || '—');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...(tipo === 'EGRESO' ? C.red : C.green));
+    doc.text(tipo === 'EGRESO' ? 'Egreso' : 'Ingreso', 48, y);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.dark);
+    doc.text(String(row?.numeroHabitacion || '—'), 66, y);
+    doc.text(String(row?.nombreCliente || '—').slice(0, 22), 82, y);
+    doc.text(String(row?.concepto || '—').slice(0, 24), 122, y);
+
+    doc.setTextColor(...C.muted);
+    doc.text(String(row?.metodoPago || '—'), 164, y);
+
+    const monto = Number(row?.monto || 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...(tipo === 'EGRESO' ? C.red : C.dark));
+    doc.text(`${tipo === 'EGRESO' ? '-' : ''}S/ ${monto.toFixed(2)}`, pageW - 14, y, { align: 'right' });
+
+    doc.setDrawColor(...C.line);
+    doc.line(14, y + 2.5, pageW - 14, y + 2.5);
+    y += 7;
+  });
+
+  /* ─── Firma ─── */
+  y += 20;
+  if (y > 260) { doc.addPage(); y = 40; }
+  doc.setDrawColor(...C.mid);
+  doc.line(50, y, 160, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.mid);
+  doc.text('Responsable de turno', pageW / 2, y + 5, { align: 'center' });
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(...C.muted);
+    doc.text(`${BRAND_NAME} — Página ${i} de ${pageCount}`, pageW / 2, 290, { align: 'center' });
+  }
+
+  const safeName = empresaNombre.replace(/[^a-zA-Z0-9]/g, '_');
+  doc.save(`reporte-empresa-${safeName}-${normalizeDateForFilename()}.pdf`);
 }

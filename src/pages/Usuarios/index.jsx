@@ -1,68 +1,25 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
-import { Table, Btn, Field, Modal, ConfirmDialog, EmptyState, Pagination, Card, useToast } from '../../components/UI/index.jsx';
+import { Table, Btn, Field, Modal, ConfirmDialog, EmptyState, Pagination, Card, RSelect, tdStyle, inputStyle, SearchInput, filterLabel, PageHeader, useToast } from '../../components/UI/index.jsx';
 import { UserCog, Plus, KeyRound } from 'lucide-react';
 import { getRecepcionistas, postRecepcionista, putRecepcionista, resetRecepcionistaPassword } from '../../api/usuarios';
-import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
+import { COUNTRY_DIAL_OPTIONS, parseIntlPhone, buildIntlPhone } from '../../utils/phone';
+import { buildTiposDocPermitidos } from '../../utils/formHelpers';
 
 const PER_PAGE = 10;
-
-const inputStyle = {
-  width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md, 8px)',
-  border: '1px solid var(--border)', fontSize: 14,
-  color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
-};
-
-const COUNTRY_DIAL_OPTIONS = getCountries()
-  .map((code) => ({
-    code,
-    dialCode: `+${getCountryCallingCode(code)}`,
-    label: `${code} ${`+${getCountryCallingCode(code)}`}`,
-  }))
-  .sort((a, b) => a.code.localeCompare(b.code));
-
-function parseIntlPhone(rawPhone) {
-  const raw = String(rawPhone || '').trim();
-  const match = raw.match(/^(\+\d{1,4})\s*(.*)$/);
-  if (!match) {
-    return { countryCode: 'PE', number: raw };
-  }
-
-  const dialCode = match[1];
-  const number = match[2] || '';
-  const found = COUNTRY_DIAL_OPTIONS.find((c) => c.dialCode === dialCode);
-  return {
-    countryCode: found?.code || 'PE',
-    number,
-  };
-}
-
-function buildIntlPhone(countryCode, number) {
-  const cleanNumber = String(number || '').trim();
-  if (!cleanNumber) return null;
-  const dialCode = COUNTRY_DIAL_OPTIONS.find((c) => c.code === countryCode)?.dialCode || '+51';
-  return `${dialCode} ${cleanNumber}`;
-}
 
 export default function Usuarios() {
   const { tiposDocumento } = useHotel();
   const addToast = useToast();
-  const tiposDocumentoPermitidos = useMemo(() => {
-    const allowed = ['DNI', 'CE', 'PASAPORTE'];
-    const source = Array.isArray(tiposDocumento) && tiposDocumento.length
-      ? tiposDocumento
-      : [
-          { id: 1, nombre: 'DNI' },
-          { id: 2, nombre: 'CE' },
-          { id: 3, nombre: 'PASAPORTE' },
-        ];
-    return source.filter((td) => allowed.includes(td?.nombre));
-  }, [tiposDocumento]);
+  const tiposDocumentoPermitidos = useMemo(() => buildTiposDocPermitidos(tiposDocumento), [tiposDocumento]);
 
   const [recepcionistas, setRecepcionistas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [filterTipoDoc, setFilterTipoDoc] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({});
   const [errors, setErrors] = useState({});
@@ -133,65 +90,99 @@ export default function Usuarios() {
     return !Object.keys(e).length;
   };
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    const telefonoCompleto = buildIntlPhone(form.telefonoCountry, form.telefono);
-    if (editId) {
-      // PUT — ActualizarRecepcionistaRequestDTO: {nombre, telefono, tipoDocumento}
-      const payload = { nombre: form.nombre, telefono: telefonoCompleto, tipoDocumento: form.tipoDocumento };
-      try {
-        const updated = await putRecepcionista(editId, payload);
-        setRecepcionistas(p => p.map(r => r.id === editId ? updated : r));
-        addToast('Recepcionista actualizado.', 'success');
-      } catch {
-        addToast('No se pudo actualizar. Verifica backend/permisos.', 'error');
-        return;
+    setSubmitting(true);
+    try {
+      const telefonoCompleto = buildIntlPhone(form.telefonoCountry, form.telefono);
+      if (editId) {
+        const payload = { nombre: form.nombre, telefono: telefonoCompleto, tipoDocumento: form.tipoDocumento };
+        try {
+          const updated = await putRecepcionista(editId, payload);
+          setRecepcionistas(p => p.map(r => r.id === editId ? updated : r));
+          addToast('Recepcionista actualizado.', 'success');
+        } catch (error) {
+          const msg = error?.response?.data?.message;
+          addToast(msg || 'No se pudo actualizar. Verifica backend/permisos.', 'error');
+          return;
+        }
+      } else {
+        const payload = {
+          nombre: form.nombre,
+          numDocumento: form.numDocumento,
+          password: form.password,
+          telefono: telefonoCompleto,
+          tipoDocumento: form.tipoDocumento,
+        };
+        try {
+          const created = await postRecepcionista(payload);
+          setRecepcionistas(p => [...p, created]);
+          addToast('Recepcionista creado.', 'success');
+        } catch (error) {
+          const msg = error?.response?.data?.message;
+          addToast(msg || 'No se pudo crear. Verifica backend/permisos.', 'error');
+          return;
+        }
       }
-    } else {
-      // POST — CrearRecepcionistaRequestDTO: {nombre, numDocumento, password, telefono?, tipoDocumento}
-      const payload = {
-        nombre: form.nombre,
-        numDocumento: form.numDocumento,
-        password: form.password,
-        telefono: telefonoCompleto,
-        tipoDocumento: form.tipoDocumento,
-      };
-      try {
-        const created = await postRecepcionista(payload);
-        setRecepcionistas(p => [...p, created]);
-        addToast('Recepcionista creado.', 'success');
-      } catch {
-        addToast('No se pudo crear. Verifica backend/permisos.', 'error');
-        return;
-      }
+      setModalOpen(false);
+    } finally {
+      setSubmitting(false);
     }
-    setModalOpen(false);
-  }, [editId, form, addToast]);
+  };
 
-  const handleResetPassword = useCallback(async () => {
+  const handleResetPassword = async () => {
     if (!newPassword.trim() || !resetModal) return;
     try {
       await resetRecepcionistaPassword(resetModal, newPassword);
       addToast('Contraseña reseteada.', 'success');
-    } catch {
-      addToast('No se pudo resetear contraseña.', 'error');
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'No se pudo resetear contraseña.', 'error');
       return;
     }
     setResetModal(null);
     setNewPassword('');
-  }, [resetModal, newPassword, addToast]);
+  };
 
-  const paged = recepcionistas.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const filtered = useMemo(() => {
+    let list = recepcionistas;
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(u =>
+        u.nombre?.toLowerCase().includes(q) ||
+        u.numDocumento?.toLowerCase().includes(q) ||
+        u.telefono?.toLowerCase().includes(q)
+      );
+    }
+    if (filterTipoDoc) list = list.filter(u => u.tipoDocumento?.nombre === filterTipoDoc);
+    return list;
+  }, [recepcionistas, search, filterTipoDoc]);
+
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
     <div className="page-anim">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', margin: 0 }}>Usuarios</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '4px 0 0' }}>Gestión de recepcionistas</p>
-        </div>
+      <PageHeader title="Usuarios" subtitle={`Gestión de recepcionistas · ${filtered.length}`}>
         <Btn icon={<Plus size={14} />} onClick={openNew}>Nuevo Recepcionista</Btn>
-      </div>
+      </PageHeader>
+
+      <Card padding="12px 16px" style={{ marginBottom: 18 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ minWidth: 220, flex: 1 }}>
+            <label style={filterLabel}>Buscar</label>
+            <SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder="Nombre, documento, teléfono…" />
+          </div>
+          <div>
+            <label style={filterLabel}>Tipo documento</label>
+            <RSelect
+              value={filterTipoDoc}
+              onValueChange={v => { setFilterTipoDoc(v); setPage(1); }}
+              placeholder="Todos"
+              options={tiposDocumentoPermitidos.map(td => ({ value: td.nombre, label: td.nombre }))}
+            />
+          </div>
+        </div>
+      </Card>
 
       {loading ? (
         <EmptyState message="Cargando recepcionistas..." icon={<UserCog size={48} />} />
@@ -206,11 +197,11 @@ export default function Usuarios() {
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 style={{ transition: 'background .12s' }}
               >
-                <td style={td}><span style={{ fontWeight: 600 }}>{u.nombre}</span></td>
-                <td style={td}>{u.numDocumento}</td>
-                <td style={td}>{u.tipoDocumento?.nombre || '—'}</td>
-                <td style={td}>{u.telefono || '—'}</td>
-                <td style={td}>
+                <td style={tdStyle}><span style={{ fontWeight: 600 }}>{u.nombre}</span></td>
+                <td style={tdStyle}>{u.numDocumento}</td>
+                <td style={tdStyle}>{u.tipoDocumento?.nombre || '—'}</td>
+                <td style={tdStyle}>{u.telefono || '—'}</td>
+                <td style={tdStyle}>
                   <span style={{
                     padding: '2px 8px', borderRadius: 'var(--r-sm, 4px)', fontSize: 11, fontWeight: 600,
                     background: 'var(--accent-light, #e3f2fd)', color: 'var(--accent)',
@@ -218,7 +209,7 @@ export default function Usuarios() {
                     Recepcionista
                   </span>
                 </td>
-                <td style={{ ...td, width: 140 }}>
+                <td style={{ ...tdStyle, width: 140 }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Btn variant="ghost" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => openEdit(u)}>Editar</Btn>
                     <Btn variant="ghost" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => { setResetModal(u.id); setNewPassword(''); }}
@@ -231,7 +222,7 @@ export default function Usuarios() {
             ))}
           </Table>
           <div style={{ padding: '0 16px 4px' }}>
-            <Pagination page={page} total={recepcionistas.length} perPage={PER_PAGE} onChange={setPage} />
+            <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
           </div>
         </Card>
       )}
@@ -280,7 +271,7 @@ export default function Usuarios() {
         </Field>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Btn variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Btn>
-          <Btn onClick={handleSubmit}>{editId ? 'Guardar cambios' : 'Crear'}</Btn>
+          <Btn onClick={handleSubmit} disabled={submitting}>{editId ? 'Guardar cambios' : 'Crear'}</Btn>
         </div>
       </Modal>
 
@@ -300,5 +291,3 @@ export default function Usuarios() {
     </div>
   );
 }
-
-const td = { padding: '10px 14px', fontSize: 13 };

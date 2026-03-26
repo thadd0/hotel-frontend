@@ -15,8 +15,3 @@ export async function login(data: LoginRequest): Promise<AuthResponse> {
 export async function logout(): Promise<string> {
   return apiFetch('/auth/logout', { method: 'POST' });
 }
-
-export async function refreshToken(refreshToken: string): Promise<AuthResponse> {
-  void refreshToken;
-  return apiFetch('/auth/refresh', { method: 'POST' });
-}

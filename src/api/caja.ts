@@ -26,3 +26,14 @@ export async function postIngresoExtra(data: GastoRequestDTO): Promise<Movimient
     data,
   });
 }
+
+export async function getMovimientosPorAlquiler(alquilerId: number): Promise<MovimientoCajaResponseDTO[]> {
+  return apiFetch(`/api/recepcion/caja/alquiler/${alquilerId}`);
+}
+
+export async function patchMovimientoMonto(id: number, monto: number): Promise<MovimientoCajaResponseDTO> {
+  return apiFetch(`/api/recepcion/caja/${id}/monto`, {
+    method: 'PATCH',
+    params: { monto },
+  });
+}

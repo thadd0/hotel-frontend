@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
+import { useState, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import {
   Btn,
@@ -8,209 +7,116 @@ import {
   DeleteBtn,
   EditBtn,
   EmptyState,
-  Field,
-  Modal,
+  filterLabel,
+  PageHeader,
   Pagination,
+  RSelect,
+  SearchInput,
   Table,
   tdStyle,
   useToast,
 } from '../../components/UI/index.jsx';
+import ClienteFormModal from '../../components/ClienteFormModal.jsx';
 import { Plus, Users } from 'lucide-react';
 
 const PER_PAGE = 10;
 
-const inputStyle = {
-  width: '100%',
-  padding: '8px 10px',
-  borderRadius: 'var(--r-sm)',
-  border: '1px solid var(--border)',
-  fontSize: 14,
-  color: 'var(--text)',
-  background: 'var(--surface)',
-  fontFamily: 'inherit',
-};
-
-const selectStyle = {
-  width: '100%',
-  padding: '8px 10px',
-  borderRadius: 'var(--r-sm)',
-  border: '1px solid var(--border)',
-  fontSize: 14,
-  color: 'var(--text)',
-  fontFamily: 'inherit',
-};
-
-function parseIntlPhone(rawPhone) {
-  const raw = String(rawPhone || '').trim();
-  const match = raw.match(/^(\+\d{1,4})\s*(.*)$/);
-  if (!match) {
-    return { countryCode: 'PE', number: raw };
-  }
-
-  const dialCode = match[1];
-  const number = match[2] || '';
-  return { dialCode, number };
-}
-
 export default function Clientes() {
-  const { clientes, addCliente, updateCliente, deleteCliente, empresas, userRole, tiposDocumento } = useHotel();
+  const { clientes, addCliente, updateCliente, deleteCliente, userRole, tiposDocumento } = useHotel();
   const addToast = useToast();
   const isAdmin = userRole === 'admin';
   const canEdit = userRole === 'admin' || userRole === 'recepcion';
 
-  const tiposDocumentoPermitidos = useMemo(() => {
-    const allowed = ['DNI', 'CE', 'PASAPORTE'];
-    const source = Array.isArray(tiposDocumento) && tiposDocumento.length
-      ? tiposDocumento
-      : [
-          { id: 1, nombre: 'DNI' },
-          { id: 2, nombre: 'CE' },
-          { id: 3, nombre: 'PASAPORTE' },
-        ];
-    return source.filter((td) => allowed.includes(td?.nombre));
-  }, [tiposDocumento]);
-
-  const countryDialOptions = useMemo(() => {
-    const regionNames = typeof Intl !== 'undefined' && Intl.DisplayNames
-      ? new Intl.DisplayNames(['es'], { type: 'region' })
-      : null;
-    return getCountries().map((code) => {
-      const dialCode = `+${getCountryCallingCode(code)}`;
-      const countryName = regionNames?.of(code) || code;
-      return { code, dialCode, label: `${countryName} (${code}) ${dialCode}` };
-    }).sort((a, b) => a.label.localeCompare(b.label));
-  }, []);
-
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [filterTipoDoc, setFilterTipoDoc] = useState('0');
+  const [filterEmpresa, setFilterEmpresa] = useState('0');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editId, setEditId] = useState(null);
+  const [editCliente, setEditCliente] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
-  const [errors, setErrors] = useState({});
-  const [form, setForm] = useState({
-    nombre: '',
-    numDocumento: '',
-    tipoDocumento: '',
-    telefono: '',
-    telefonoCountry: 'PE',
-    empresaEnabled: false,
-    empresaId: '',
-  });
 
-  const paged = clientes.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const tipoDocOptions = useMemo(() => {
+    const nombres = [...new Set(clientes.map(c => c.tipoDocumento?.nombre).filter(Boolean))].sort();
+    return [{ value: '0', label: 'Todos' }, ...nombres.map(n => ({ value: n, label: n }))];
+  }, [clientes]);
 
-  const findCountryCodeByDial = (dialCode) => {
-    return countryDialOptions.find((c) => c.dialCode === dialCode)?.code || 'PE';
-  };
+  const empresaOptions = [
+    { value: '0', label: 'Todos' },
+    { value: 'EMPRESA', label: 'Con empresa' },
+    { value: 'EXTERNO', label: 'Sin empresa' },
+  ];
 
-  const getDialCodeByCountry = (countryCode) => {
-    return countryDialOptions.find((c) => c.code === countryCode)?.dialCode || '+51';
-  };
+  const filtered = useMemo(() => {
+    let result = clientes;
+    if (filterTipoDoc && filterTipoDoc !== '0') {
+      result = result.filter(c => c.tipoDocumento?.nombre === filterTipoDoc);
+    }
+    if (filterEmpresa === 'EMPRESA') {
+      result = result.filter(c => c.empresaNombre && c.empresaNombre !== '—');
+    } else if (filterEmpresa === 'EXTERNO') {
+      result = result.filter(c => !c.empresaNombre || c.empresaNombre === '—');
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(c =>
+        c.nombre?.toLowerCase().includes(q)
+        || c.numDocumento?.toLowerCase().includes(q)
+        || c.telefono?.toLowerCase().includes(q)
+        || c.empresaNombre?.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [clientes, filterTipoDoc, filterEmpresa, search]);
 
-  const resetForm = () => {
-    setForm({
-      nombre: '',
-      numDocumento: '',
-      tipoDocumento: tiposDocumentoPermitidos[0]?.nombre || '',
-      telefono: '',
-      telefonoCountry: 'PE',
-      empresaEnabled: false,
-      empresaId: '',
-    });
-    setErrors({});
-  };
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const openNew = () => {
-    setEditId(null);
-    resetForm();
+    setEditCliente(null);
     setModalOpen(true);
   };
 
   const openEdit = (cliente) => {
-    const parsedPhone = parseIntlPhone(cliente.telefono || '');
-    const empresaId = cliente.empresaId ? String(cliente.empresaId) : '';
-    setEditId(cliente.id);
-    setForm({
-      nombre: cliente.nombre || '',
-      numDocumento: cliente.numDocumento || '',
-      tipoDocumento: cliente.tipoDocumento?.nombre || tiposDocumentoPermitidos[0]?.nombre || '',
-      telefono: parsedPhone.number,
-      telefonoCountry: findCountryCodeByDial(parsedPhone.dialCode),
-      empresaEnabled: Boolean(empresaId),
-      empresaId,
-    });
-    setErrors({});
+    setEditCliente(cliente);
     setModalOpen(true);
-  };
-
-  const validate = () => {
-    const e = {};
-    if (!form.nombre.trim()) e.nombre = 'Nombre requerido';
-    if (!form.numDocumento.trim()) e.numDocumento = 'Número de documento requerido';
-    if (!form.tipoDocumento) e.tipoDocumento = 'Tipo de documento requerido';
-    if (form.empresaEnabled && !form.empresaId) e.empresaId = 'Seleccione una empresa';
-    setErrors(e);
-    return !Object.keys(e).length;
-  };
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-
-    const selectedTipo = tiposDocumentoPermitidos.find((td) => td.nombre === form.tipoDocumento);
-    if (!selectedTipo) {
-      addToast('Tipo de documento inválido', 'error');
-      return;
-    }
-
-    const telefono = form.telefono?.trim()
-      ? `${getDialCodeByCountry(form.telefonoCountry)} ${form.telefono.trim()}`
-      : '';
-
-    const payload = {
-      nombre: form.nombre.trim(),
-      numDocumento: form.numDocumento.trim(),
-      telefono,
-      tipoDocumento: {
-        id: selectedTipo.id,
-        nombre: selectedTipo.nombre,
-      },
-      empresaId: form.empresaEnabled && form.empresaId ? Number(form.empresaId) : null,
-    };
-
-    try {
-      if (editId) {
-        await updateCliente(editId, payload);
-        addToast('Cliente actualizado', 'success');
-      } else {
-        await addCliente(payload);
-        addToast('Cliente creado', 'success');
-      }
-      setModalOpen(false);
-    } catch {
-      addToast('Error al guardar cliente', 'error');
-    }
   };
 
   const handleDelete = async () => {
     try {
       await deleteCliente(confirmId);
       addToast('Cliente eliminado', 'info');
-    } catch {
-      addToast('Error al eliminar cliente', 'error');
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al eliminar cliente', 'error');
     }
     setConfirmId(null);
   };
 
   return (
     <div className="page-anim">
-      {isAdmin && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 18 }}>
-          <Btn icon={<Plus size={14} />} onClick={openNew}>Nuevo</Btn>
+      <PageHeader title="Clientes" subtitle={`Gestión de huéspedes y empresas · ${filtered.length}`}>
+        {canEdit && <Btn icon={<Plus size={14} />} onClick={openNew}>Nuevo</Btn>}
+      </PageHeader>
+
+      <Card padding="12px 16px" style={{ marginBottom: 18 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 220px', minWidth: 180 }}>
+            <label style={filterLabel}>Buscar</label>
+            <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Nombre, documento, teléfono…" />
+          </div>
+          <div>
+            <label style={filterLabel}>Tipo Doc.</label>
+            <RSelect value={filterTipoDoc} onValueChange={(v) => { setFilterTipoDoc(v); setPage(1); }} options={tipoDocOptions} />
+          </div>
+          <div>
+            <label style={filterLabel}>Empresa</label>
+            <RSelect value={filterEmpresa} onValueChange={(v) => { setFilterEmpresa(v); setPage(1); }} options={empresaOptions} />
+          </div>
         </div>
-      )}
+      </Card>
 
       <Card>
         {paged.length === 0 ? (
-          <EmptyState message="No hay clientes registrados" icon={<Users size={42} />} />
+          <EmptyState message={search || filterTipoDoc !== '0' || filterEmpresa !== '0' ? 'No hay clientes que coincidan con los filtros' : 'No hay clientes registrados'} icon={<Users size={42} />} />
         ) : (
           <Table headers={['Nombre Completo', 'Documento', 'Tipo Doc.', 'Teléfono', 'Empresa', '']}>
             {paged.map((item) => (
@@ -238,107 +144,18 @@ export default function Clientes() {
           </Table>
         )}
         <div style={{ padding: '0 16px 4px' }}>
-          <Pagination page={page} total={clientes.length} perPage={PER_PAGE} onChange={setPage} />
+          <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
         </div>
       </Card>
 
-      {canEdit ? (
-        <Modal
+      {canEdit && (
+        <ClienteFormModal
           open={modalOpen}
           onOpenChange={setModalOpen}
-          title={editId ? 'Editar cliente' : 'Nuevo cliente'}
-          width={400}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <Field label="Nombre" error={errors.nombre} required>
-              <input
-                style={inputStyle}
-                value={form.nombre}
-                onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))}
-                placeholder="Nombre completo"
-              />
-            </Field>
-
-            <Field label="Tipo de documento" error={errors.tipoDocumento} required>
-              <select
-                style={selectStyle}
-                value={form.tipoDocumento}
-                onChange={(e) => setForm((p) => ({ ...p, tipoDocumento: e.target.value }))}
-              >
-                {tiposDocumentoPermitidos.map((td) => (
-                  <option key={td.id} value={td.nombre}>{td.nombre}</option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Número de documento" error={errors.numDocumento} required>
-              <input
-                style={inputStyle}
-                value={form.numDocumento}
-                onChange={(e) => setForm((p) => ({ ...p, numDocumento: e.target.value }))}
-                placeholder="DNI / CE / PASAPORTE"
-              />
-            </Field>
-
-            <Field label="Teléfono">
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 42%) 1fr', gap: '8px' }}>
-                <select
-                  style={selectStyle}
-                  value={form.telefonoCountry}
-                  onChange={(e) => setForm((p) => ({ ...p, telefonoCountry: e.target.value }))}
-                >
-                  {countryDialOptions.map((country) => (
-                    <option key={country.code} value={country.code}>{country.label}</option>
-                  ))}
-                </select>
-                <input
-                  style={inputStyle}
-                  value={form.telefono}
-                  onChange={(e) => setForm((p) => ({ ...p, telefono: e.target.value }))}
-                  placeholder="Número"
-                />
-              </div>
-            </Field>
-
-            <Field label="Empresa" error={errors.empresaId}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
-                  <input
-                    type="checkbox"
-                    checked={form.empresaEnabled}
-                    disabled={!!editId && !isAdmin}
-                    onChange={(e) => {
-                      if (editId && !isAdmin) return;
-                      const enabled = e.target.checked;
-                      setForm((p) => ({
-                        ...p,
-                        empresaEnabled: enabled,
-                        empresaId: enabled ? (p.empresaId || (empresas[0] ? String(empresas[0].id) : '')) : '',
-                      }));
-                    }}
-                  />
-                  Pertenece a una empresa
-                </label>
-                <select
-                  style={{ ...selectStyle, opacity: (form.empresaEnabled && (isAdmin || !editId)) ? 1 : 0.65, cursor: (form.empresaEnabled && (isAdmin || !editId)) ? 'pointer' : 'not-allowed' }}
-                  value={form.empresaId}
-                  disabled={!form.empresaEnabled || (!!editId && !isAdmin)}
-                  onChange={(e) => setForm((p) => ({ ...p, empresaId: e.target.value }))}
-                >
-                  <option value="" disabled>Selecciona una empresa</option>
-                  {empresas.map((emp) => (
-                    <option key={emp.id} value={String(emp.id)}>{emp.nombre} ({emp.ruc})</option>
-                  ))}
-                </select>
-              </div>
-            </Field>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-              <Btn onClick={handleSubmit}>Guardar</Btn>
-            </div>
-          </div>
-        </Modal>
-      ) : null}
+          cliente={editCliente}
+          onSaved={() => {}}
+        />
+      )}
 
       {isAdmin ? (
         <ConfirmDialog

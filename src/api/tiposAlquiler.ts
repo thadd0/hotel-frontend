@@ -7,10 +7,6 @@ export const getTiposAlquiler = async (): Promise<TipoAlquilerDTO[]> => {
   return apiFetch('/api/recepcion/tipos-alquiler');
 };
 
-export const getTipoAlquiler = async (id: number): Promise<TipoAlquilerDTO> => {
-  return apiFetch(`/api/recepcion/tipos-alquiler/${id}`);
-};
-
 export const postTipoAlquiler = async (data: Omit<TipoAlquilerDTO, 'id'>): Promise<TipoAlquilerDTO> => {
   return apiFetch('/api/recepcion/tipos-alquiler', {
     method: 'POST',

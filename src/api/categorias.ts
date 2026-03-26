@@ -6,10 +6,6 @@ export const getTiposHabitacion = async (): Promise<TipoHabitacionDTO[]> => {
   return apiFetch('/api/recepcion/tipos-habitacion');
 };
 
-export const getTipoHabitacion = async (id: number): Promise<TipoHabitacionDTO> => {
-  return apiFetch(`/api/recepcion/tipos-habitacion/${id}`);
-};
-
 export const postTipoHabitacion = async (data: Omit<TipoHabitacionDTO, 'id'>): Promise<TipoHabitacionDTO> => {
   return apiFetch('/api/recepcion/tipos-habitacion', {
     method: 'POST',

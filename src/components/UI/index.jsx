@@ -15,7 +15,7 @@ export function TooltipProvider({ children }) {
 
 /* ─── BOTÓN ───────────────────────────────────────── */
 const BTN_VARIANTS = {
-  primary: { bg:'var(--accent)',    color:'#fff',               border:'transparent',         hoverBg:'var(--accent-dark)' },
+  primary: { bg:'var(--accent)',    color:'#fff',               border:'transparent',         hoverBg:'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' },
   ghost:   { bg:'transparent',     color:'var(--text-2)',       border:'var(--border)',        hoverBg:'var(--surface-2)'   },
   danger:  { bg:'var(--red)',       color:'#fff',               border:'transparent',         hoverBg:'#b91c1c'            },
   soft:    { bg:'var(--accent-light)', color:'var(--accent)',   border:'var(--accent-mid)',   hoverBg:'var(--accent-mid)'  },
@@ -104,7 +104,7 @@ export function Modal({ open, onOpenChange, title, children, description = 'Oper
 }
 
 /* ─── DIÁLOGO DE ALERTA RADIX (Confirmar) ─────────────────── */
-export function ConfirmDialog({ open, onOpenChange, onConfirm, message='¿Confirmas la eliminación de este registro?' }) {
+export function ConfirmDialog({ open, onOpenChange, onConfirm, title='Confirmar eliminación', message='¿Confirmas la eliminación de este registro?', confirmLabel='Sí, eliminar', variant='danger' }) {
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialog.Portal>
@@ -124,7 +124,7 @@ export function ConfirmDialog({ open, onOpenChange, onConfirm, message='¿Confir
               </div>
               <div>
                 <AlertDialog.Title style={{ fontWeight:700, fontSize:15, marginBottom:5 }}>
-                  Confirmar eliminación
+                  {title}
                 </AlertDialog.Title>
                 <AlertDialog.Description style={{ fontSize:13, color:'var(--text-muted)', lineHeight:1.5 }}>
                   {message}
@@ -136,7 +136,7 @@ export function ConfirmDialog({ open, onOpenChange, onConfirm, message='¿Confir
                 <Btn variant="ghost">Cancelar</Btn>
               </AlertDialog.Cancel>
               <AlertDialog.Action asChild>
-                <Btn variant="danger" onClick={onConfirm}>Sí, eliminar</Btn>
+                <Btn variant={variant} onClick={onConfirm}>{confirmLabel}</Btn>
               </AlertDialog.Action>
             </div>
           </div>
@@ -270,7 +270,7 @@ export const inputStyle = {
 
 export const inputFocus = (e) => {
   e.target.style.borderColor = 'var(--accent)';
-  e.target.style.boxShadow   = '0 0 0 3px rgba(13,148,136,.12)';
+  e.target.style.boxShadow   = '0 0 0 3px rgba(212,134,12,.15)';
 };
 export const inputBlur = (e) => {
   e.target.style.borderColor = 'var(--border)';
@@ -313,8 +313,8 @@ export function Table({ headers, children }) {
 const thStyle = {
   padding:'9px 16px', textAlign:'left',
   fontSize:'11px', fontWeight:700, letterSpacing:'.7px',
-  color:'var(--text-xmuted)', background:'var(--bg)',
-  borderBottom:'1px solid var(--border)', textTransform:'uppercase',
+  color:'var(--text-2)', background:'var(--bg)',
+  borderBottom:'2px solid var(--border)', textTransform:'uppercase',
 };
 
 export const tdStyle = {
@@ -386,7 +386,7 @@ export function EmptyState({ message='No hay registros', icon }) {
       padding:'56px 20px', textAlign:'center',
       color:'var(--text-muted)', fontSize:14,
     }}>
-      {icon && <div style={{ marginBottom:10, opacity:.35 }}>{icon}</div>}
+      {icon && <div style={{ marginBottom:10, opacity:.35, animation:'gentleFloat 3s ease-in-out infinite' }}>{icon}</div>}
       <div style={{ fontWeight:500 }}>{message}</div>
     </div>
   );
@@ -432,6 +432,44 @@ function PopoverMenu({ trigger, children }) {
 }
 export { PopoverMenu, Popover };
 
+/* ─── ETIQUETA DE FILTRO ─────────────────────────────── */
+export const filterLabel = {
+  display: 'block', fontSize: 11.5, fontWeight: 600,
+  color: 'var(--text-muted)', marginBottom: 4,
+  textTransform: 'uppercase', letterSpacing: '.5px',
+};
+
+/* ─── CABECERA DE PÁGINA ─────────────────────────────── */
+export function PageHeader({ title, subtitle, children }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div>
+        <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{title}</h1>
+        {subtitle && <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '4px 0 0' }}>{subtitle}</p>}
+      </div>
+      {children && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{children}</div>}
+    </div>
+  );
+}
+
+/* ─── BOTÓN DE PESTAÑA ───────────────────────────────── */
+export function TabBtn({ active, onClick, label, count }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '8px 18px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+        borderRadius: 'var(--r-md, 8px)', fontFamily: 'inherit',
+        background: active ? 'var(--accent)' : 'var(--surface-2, #f5f5f5)',
+        color: active ? '#fff' : 'var(--text-muted)',
+        transition: 'all .15s',
+      }}
+    >
+      {label} {count != null && <span style={{ fontSize: 11, opacity: 0.8 }}>({count})</span>}
+    </button>
+  );
+}
+
 /* ─── TOAST SYSTEM ──────────────────────────────────── */
 const TOAST_ICONS = {
   success: <CheckCircle size={16} />,
@@ -447,7 +485,9 @@ const TOAST_COLORS = {
 const ToastCtx = createContext(null);
 
 export function useToast() {
-  return useContext(ToastCtx);
+  const ctx = useContext(ToastCtx);
+  if (!ctx) throw new Error('useToast must be used within <ToastProvider>');
+  return ctx;
 }
 
 export function ToastProvider({ children }) {
@@ -497,5 +537,32 @@ export function ToastProvider({ children }) {
         })}
       </div>
     </ToastCtx.Provider>
+  );
+}
+
+/* ─── SKELETON LOADER ───────────────────────────────── */
+export function Skeleton({ width = '100%', height = 16, radius = 'var(--r-sm)', style: extra }) {
+  return (
+    <div className="skeleton-pulse" style={{
+      width, height, borderRadius: radius,
+      background: 'linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%)',
+      backgroundSize: '200% 100%',
+      ...extra,
+    }} />
+  );
+}
+
+export function TableSkeleton({ rows = 5, cols = 4 }) {
+  return (
+    <div style={{ overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12, padding: '12px 16px', background: 'var(--bg)' }}>
+        {Array.from({ length: cols }).map((_, i) => <Skeleton key={i} height={10} width="60%" />)}
+      </div>
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+          {Array.from({ length: cols }).map((_, c) => <Skeleton key={c} height={14} width={c === 0 ? '80%' : '55%'} />)}
+        </div>
+      ))}
+    </div>
   );
 }

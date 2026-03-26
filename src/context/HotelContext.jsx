@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { initialData } from '../data/initialData';
 
-// API imports (calls will fail gracefully when backend is offline — fallback to local mock)
+// API imports (calls will fail gracefully when backend is offline)
 import { getHabitaciones, postHabitacion, putHabitacion, deleteHabitacion as deleteHabitacionAPI, patchEstadoHabitacion } from '../api/habitaciones';
 import { getAlquileresActivos, getAlquileresHistorial, getAlquiler, postCheckIn, postCheckOut } from '../api/alquileres';
 import { getTarifas, postTarifa, putTarifa, deleteTarifa as deleteTarifaAPI, patchIncrementoTarifas } from '../api/tarifas';
@@ -12,25 +11,25 @@ import { getClientes, postCliente, putCliente, deleteCliente as deleteClienteAPI
 import { getResumenHoy } from '../api/caja';
 import { logout as logoutApi } from '../auth/api';
 import { deriveAppRole } from '../auth/roles';
-import { getAccessToken, hasAccessToken, setAccessToken, setRefreshToken, clearAuthStorage } from '../auth/storage';
+import { getAccessToken, hasAccessToken, setAccessToken, clearAuthStorage } from '../auth/storage';
 
 const HotelContext = createContext(null);
 
 export function HotelProvider({ children }) {
   // ── State aligned to backend DTOs ──────────────────────────────────
-  const [tiposHabitacion, setTiposHabitacion] = useState(initialData.tiposHabitacion);
-  const [tiposAlquiler,   setTiposAlquiler]   = useState(initialData.tiposAlquiler);
-  const [tarifas,         setTarifas]         = useState(initialData.tarifas);
-  const [habitaciones,    setHabitaciones]    = useState(initialData.habitaciones);
-  const [empresas,        setEmpresas]        = useState(initialData.empresas);
-  const [clientes,        setClientes]        = useState(initialData.clientes);
-  const [alquileres,      setAlquileres]      = useState(initialData.alquileres);
-  const [movimientosCaja, setMovimientosCaja] = useState(initialData.movimientosCaja);
-  const [tiposDocumento]                      = useState(initialData.tiposDocumento);
+  const [tiposHabitacion, setTiposHabitacion] = useState([]);
+  const [tiposAlquiler,   setTiposAlquiler]   = useState([]);
+  const [tarifas,         setTarifas]         = useState([]);
+  const [habitaciones,    setHabitaciones]    = useState([]);
+  const [empresas,        setEmpresas]        = useState([]);
+  const [clientes,        setClientes]        = useState([]);
+  const [alquileres,      setAlquileres]      = useState([]);
+  const [movimientosCaja, setMovimientosCaja] = useState([]);
+  const [tiposDocumento]                      = useState([]);
 
   // ── Auth state ─────────────────────────────────────────────────────
   const [isLoggedIn, setIsLoggedIn] = useState(() => hasAccessToken());
-  const [userRole,   setUserRole]   = useState('admin'); // 'admin' | 'recepcion'
+  const [userRole,   setUserRole]   = useState('recepcion');
   const [token,      setToken]      = useState(getAccessToken());
   const [userName,   setUserName]   = useState('');
 
@@ -41,9 +40,6 @@ export function HotelProvider({ children }) {
       setUserRole(deriveAppRole(authResponse.access_token, authResponse.rol));
       setUserName(authResponse.nombre || '');
       setAccessToken(authResponse.access_token);
-      if (authResponse.refresh_token) {
-        setRefreshToken(authResponse.refresh_token);
-      }
     }
   }, []);
 
@@ -54,27 +50,44 @@ export function HotelProvider({ children }) {
       // ignore — token may already be expired
     } finally {
       setIsLoggedIn(false);
-      setUserRole('admin');
+      setUserRole('recepcion');
       setToken(null);
       setUserName('');
       clearAuthStorage();
     }
   }, []);
 
-  // Restore auth state on mount (role is derived from JWT)
+  // Restore auth state on mount — also validates JWT expiry
   useEffect(() => {
     const savedToken = getAccessToken();
     if (savedToken) {
+      try {
+        const payload = JSON.parse(atob(savedToken.split('.')[1]));
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+          clearAuthStorage();
+          return;
+        }
+      } catch (_) {
+        clearAuthStorage();
+        return;
+      }
       setIsLoggedIn(true);
       setToken(savedToken);
       setUserRole(deriveAppRole(savedToken));
     }
   }, []);
 
+  // Respond to auth:logout events dispatched by the API interceptor
+  useEffect(() => {
+    const handleAuthLogout = () => logout();
+    window.addEventListener('auth:logout', handleAuthLogout);
+    return () => window.removeEventListener('auth:logout', handleAuthLogout);
+  }, [logout]);
+
   // Keep app role aligned with the current access token
   useEffect(() => {
     if (!token) {
-      setUserRole('admin');
+      setUserRole('recepcion');
       return;
     }
     setUserRole(deriveAppRole(token));
@@ -133,8 +146,8 @@ export function HotelProvider({ children }) {
         if (Array.isArray(resumenRes)) {
           setMovimientosCaja(resumenRes);
         }
-      } catch {
-        // Keep local mock state when backend is unavailable.
+      } catch (err) {
+        if (import.meta.env.DEV) console.error('Error en sincronización inicial con el backend:', err);
       }
     })();
 
@@ -274,7 +287,9 @@ export function HotelProvider({ children }) {
       const updated = await getAlquiler(id);
       setAlquileres(p => p.map(a => a.id === id ? updated : a));
       return updated;
-    } catch { /* silent */ }
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('Error al refrescar alquiler:', err);
+    }
   }, []);
 
   // ── Derived: unique pisos from habitaciones ────────────────────────

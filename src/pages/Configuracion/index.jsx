@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useHotel } from '../../context/HotelContext';
+import { PageHeader, TabBtn } from '../../components/UI/index.jsx';
 import GenericCRUD from '../../components/GenericCRUD.jsx';
 import { BedDouble, Clock } from 'lucide-react';
 
@@ -13,24 +14,16 @@ export default function Configuracion() {
   const readOnly = userRole !== 'admin';
   const [tab, setTab] = useState('habitacion'); // 'habitacion' | 'alquiler'
 
-  const tabStyle = (active) => ({
-    padding: '8px 20px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-    borderRadius: 'var(--r-md, 8px)', fontFamily: 'inherit',
-    background: active ? 'var(--accent)' : 'var(--surface-2, #f5f5f5)',
-    color: active ? '#fff' : 'var(--text-muted)',
-    transition: 'all .15s',
-  });
+  const tabs = (
+    <div style={{ display: 'flex', gap: 4 }}>
+      <TabBtn active={tab === 'habitacion'} onClick={() => setTab('habitacion')} label="Tipos de Habitación" count={tiposHabitacion.length} />
+      <TabBtn active={tab === 'alquiler'} onClick={() => setTab('alquiler')} label="Tipos de Alquiler" count={tiposAlquiler.length} />
+    </div>
+  );
 
   return (
     <div className="page-anim">
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
-        <button style={tabStyle(tab === 'habitacion')} onClick={() => setTab('habitacion')}>
-          Tipos de Habitación ({tiposHabitacion.length})
-        </button>
-        <button style={tabStyle(tab === 'alquiler')} onClick={() => setTab('alquiler')}>
-          Tipos de Alquiler ({tiposAlquiler.length})
-        </button>
-      </div>
+      <PageHeader title="Configuración" subtitle="Tipos de habitación y alquiler" />
 
       {tab === 'habitacion' && (
         <GenericCRUD
@@ -44,6 +37,7 @@ export default function Configuracion() {
           emptyIcon={<BedDouble size={42} />}
           modalTitle="Tipo de Habitación"
           readOnly={readOnly}
+          toolbarPrefix={tabs}
         />
       )}
 
@@ -53,12 +47,24 @@ export default function Configuracion() {
           onAdd={addTipoAlquiler}
           onUpdate={updateTipoAlquiler}
           onDelete={deleteTipoAlquiler}
-          columns={[{ key: 'nombre', label: 'Nombre' }]}
-          formFields={[{ key: 'nombre', label: 'Nombre del tipo', required: true, placeholder: 'POR HORA' }]}
+          columns={[
+            { key: 'nombre', label: 'Nombre' },
+            { key: 'unidad', label: 'Unidad', render: (item) => item.unidad === 'HORA' ? 'Horas' : 'Días' },
+            { key: 'multiplicador', label: 'Multiplicador' },
+          ]}
+          formFields={[
+            { key: 'nombre', label: 'Nombre del tipo', required: true, placeholder: 'POR SEMANA' },
+            { key: 'unidad', label: 'Unidad de tiempo', required: true, type: 'select', options: [
+              { value: 'HORA', label: 'Horas' },
+              { value: 'DIA', label: 'Días' },
+            ]},
+            { key: 'multiplicador', label: 'Multiplicador', required: true, type: 'number', min: 1, placeholder: '7 (ej. semana = 7 días)' },
+          ]}
           emptyMsg="No hay tipos de alquiler configurados"
           emptyIcon={<Clock size={42} />}
           modalTitle="Tipo de Alquiler"
           readOnly={readOnly}
+          toolbarPrefix={tabs}
         />
       )}
     </div>

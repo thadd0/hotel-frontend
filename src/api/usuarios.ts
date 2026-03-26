@@ -19,10 +19,6 @@ export async function getRecepcionistas(): Promise<UsuarioDTO[]> {
   return apiFetch('/api/admin/usuarios/recepcionistas');
 }
 
-export async function getRecepcionista(id: number): Promise<UsuarioDTO> {
-  return apiFetch(`/api/admin/usuarios/recepcionistas/${id}`);
-}
-
 export async function postRecepcionista(data: { nombre: string; numDocumento: string; password: string; telefono?: string; tipoDocumento: string }): Promise<UsuarioDTO> {
   return apiFetch('/api/admin/usuarios/recepcionistas', { method: 'POST', data });
 }

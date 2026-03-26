@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import * as Checkbox from '@radix-ui/react-checkbox';
 import { useHotel } from '../context/HotelContext.jsx';
-import { Field, Btn, SearchInput, Modal, useToast } from './UI/index.jsx';
+import { SearchInput, ConfirmDialog, inputStyle, useToast } from './UI/index.jsx';
+import ClienteFormModal from './ClienteFormModal.jsx';
 import { Plus, Check } from 'lucide-react';
-import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
 
 export default function CheckInClienteList({
   clientes = [],
@@ -15,79 +15,13 @@ export default function CheckInClienteList({
   const { clientes: allClientes, addCliente, updateCliente, deleteCliente, tiposDocumento, empresas, userRole } = useHotel();
   const isAdmin = userRole === 'admin';
   const addToast = useToast();
-  const countryDialOptions = useMemo(() => {
-    const regionNames = typeof Intl !== 'undefined' && Intl.DisplayNames
-      ? new Intl.DisplayNames(['es'], { type: 'region' })
-      : null;
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-    return getCountries()
-      .map((code) => {
-        const dialCode = `+${getCountryCallingCode(code)}`;
-        const countryName = regionNames?.of(code) || code;
-        return {
-          code,
-          dialCode,
-          label: `${countryName} (${code}) ${dialCode}`,
-        };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, []);
-
-  const parsePhoneValue = (rawPhone) => {
-    const raw = (rawPhone || '').trim();
-    const match = raw.match(/^(\+\d{1,4})\s*(.*)$/);
-    if (match) {
-      return { dialCode: match[1], phone: match[2] || '' };
-    }
-    return { dialCode: '+51', phone: raw };
-  };
-
-  const findCountryCodeByDial = (dialCode) => {
-    return countryDialOptions.find((c) => c.dialCode === dialCode)?.code || 'PE';
-  };
-
-  const getDialCodeByCountry = (countryCode) => {
-    return countryDialOptions.find((c) => c.code === countryCode)?.dialCode || '+51';
-  };
-  const tiposDocumentoFallback = useMemo(
-    () => [
-      { id: 1, nombre: 'DNI' },
-      { id: 2, nombre: 'CE' },
-      { id: 3, nombre: 'PASAPORTE' },
-    ],
-    []
-  );
-  const tiposDocumentoSource = useMemo(
-    () => (Array.isArray(tiposDocumento) && tiposDocumento.length ? tiposDocumento : tiposDocumentoFallback),
-    [tiposDocumento, tiposDocumentoFallback]
-  );
-  const allowedTipoDocumentoNames = ['DNI', 'CE', 'PASAPORTE'];
-  const tiposDocumentoPermitidos = useMemo(
-    () => tiposDocumentoSource.filter((td) => allowedTipoDocumentoNames.includes(td?.nombre)),
-    [tiposDocumentoSource]
-  );
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterTipoCliente, setFilterTipoCliente] = useState('TODOS'); // TODOS | EMPRESA | EXTERNO
-  const [showNewForm, setShowNewForm] = useState(false);
-  const [newPhoneCountry, setNewPhoneCountry] = useState('PE');
-  const [editPhoneCountry, setEditPhoneCountry] = useState('PE');
-  const [selectedIds, setSelectedIds] = useState(() => clientes.map((c) => c?.id).filter(Boolean));
-  const [newClienteData, setNewClienteData] = useState({
-    tipoDocumento: '',
-    numDocumento: '',
-    nombre: '',
-    telefono: '',
-    empresaId: '',
-  });
+  const [filterTipoCliente, setFilterTipoCliente] = useState('TODOS');
+  const [showNewModal, setShowNewModal] = useState(false);
   const [editingCliente, setEditingCliente] = useState(null);
-  const [editClienteData, setEditClienteData] = useState({
-    tipoDocumento: null,
-    numDocumento: '',
-    nombre: '',
-    telefono: '',
-    empresaId: '',
-  });
-  const [editEmpresaEnabled, setEditEmpresaEnabled] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => clientes.map((c) => c?.id).filter(Boolean));
 
   useEffect(() => {
     setSelectedIds(clientes.map((c) => c?.id).filter(Boolean));
@@ -119,20 +53,6 @@ export default function CheckInClienteList({
     });
   }, [allClientes, searchTerm, filterTipoCliente]);
 
-  useEffect(() => {
-    if (!newClienteData.tipoDocumento && tiposDocumentoPermitidos.length) {
-      setNewClienteData((prev) => ({
-        ...prev,
-        tipoDocumento: String(tiposDocumentoPermitidos[0].id),
-      }));
-    }
-  }, [tiposDocumentoPermitidos, newClienteData.tipoDocumento]);
-
-  const availableClientes = useMemo(() => {
-    if (showNewForm) return [];
-    return filteredClientes.filter((cliente) => !selectedIds.includes(cliente.id));
-  }, [filteredClientes, selectedIds, showNewForm]);
-
   const updateSelectedClientes = (nextIds) => {
     const nextSelecionados = allClientes.filter((c) => nextIds.includes(c.id));
     setSelectedIds(nextIds);
@@ -155,70 +75,30 @@ export default function CheckInClienteList({
   };
 
   const startEditCliente = (cliente) => {
-    const tipoActual = cliente.tipoDocumento;
-    let tipoDocumentoSeleccionado = null;
-
-    if (tipoActual?.id != null) {
-      tipoDocumentoSeleccionado = tiposDocumentoPermitidos.find((td) => td.id === tipoActual.id) || null;
-    } else if (typeof tipoActual === 'string') {
-      tipoDocumentoSeleccionado = tiposDocumentoPermitidos.find((td) => td.nombre === tipoActual) || null;
-    }
-
-    if (!tipoDocumentoSeleccionado) {
-      tipoDocumentoSeleccionado = tiposDocumentoPermitidos[0] || null;
-    }
-
-    const parsedPhone = parsePhoneValue(cliente.telefono || '');
-    setEditPhoneCountry(findCountryCodeByDial(parsedPhone.dialCode));
-
-    const empresaIdActual = cliente.empresaId
-      ? String(cliente.empresaId)
-      : (cliente.empresaNombre ? String(empresas.find((e) => e.nombre === cliente.empresaNombre)?.id || '') : '');
-    setEditEmpresaEnabled(Boolean(empresaIdActual));
-
     setEditingCliente(cliente);
-    setEditClienteData({
-      tipoDocumento: tipoDocumentoSeleccionado,
-      numDocumento: cliente.numDocumento || '',
-      nombre: cliente.nombre || '',
-      telefono: parsedPhone.phone,
-      empresaId: empresaIdActual,
-    });
   };
 
-  const saveEditCliente = async () => {
-    if (!editingCliente?.id) return;
-    if (!editClienteData.nombre.trim() || !editClienteData.numDocumento.trim()) return;
-    if (!editClienteData.tipoDocumento?.id) return;
-    try {
-      const dialCode = getDialCodeByCountry(editPhoneCountry);
-      const telefono = editClienteData.telefono?.trim() ? `${dialCode} ${editClienteData.telefono.trim()}` : '';
-      const empresaId = editEmpresaEnabled && editClienteData.empresaId
-        ? Number(editClienteData.empresaId)
-        : null;
-      const updatedCliente = await updateCliente(editingCliente.id, {
-        tipoDocumento: editClienteData.tipoDocumento,
-        numDocumento: editClienteData.numDocumento,
-        nombre: editClienteData.nombre,
-        telefono,
-        empresaId,
-      });
+  const handleEditSaved = (updatedCliente) => {
+    const refreshedSeleccionados = selectedIds
+      .map((id) => {
+        if (id === editingCliente?.id) return updatedCliente;
+        return allClientes.find((c) => c.id === id);
+      })
+      .filter(Boolean);
+    onClientesChange?.(refreshedSeleccionados);
+    setEditingCliente(null);
+  };
 
-      const refreshedSeleccionados = selectedIds
-        .map((id) => {
-          if (id === editingCliente.id) return updatedCliente;
-          return allClientes.find((c) => c.id === id);
-        })
-        .filter(Boolean);
-
-      onClientesChange?.(refreshedSeleccionados);
-      setEditingCliente(null);
-    } catch {
-      // keep modal open so user can retry
-    }
+  const handleNewSaved = (savedCliente) => {
+    if (!savedCliente?.id) return;
+    const nextIds = [...selectedIds, savedCliente.id];
+    updateSelectedClientes(nextIds);
+    setShowNewModal(false);
+    onAddModeChange?.(false);
   };
 
   const removeCliente = async (clienteId) => {
+    setDeleteConfirmId(null);
     try {
       await deleteCliente(clienteId);
       const nextIds = selectedIds.filter((id) => id !== clienteId);
@@ -232,56 +112,6 @@ export default function CheckInClienteList({
     }
   };
 
-  const saveNewCliente = async () => {
-    const { tipoDocumento, numDocumento, nombre, telefono, empresaId } = newClienteData;
-    if (!nombre.trim() || !numDocumento.trim()) return;
-
-    try {
-      const selectedTipoDocumento = tiposDocumentoPermitidos.find((td) => td.id === Number(tipoDocumento));
-      if (!selectedTipoDocumento) return;
-      const dialCode = getDialCodeByCountry(newPhoneCountry);
-      const telefonoCompleto = telefono?.trim() ? `${dialCode} ${telefono.trim()}` : '';
-      const savedCliente = await addCliente({
-        tipoDocumento: {
-          id: selectedTipoDocumento.id,
-          nombre: selectedTipoDocumento.nombre,
-        },
-        numDocumento,
-        nombre,
-        telefono: telefonoCompleto,
-        empresaId: empresaId ? Number(empresaId) : null,
-      });
-      if (!savedCliente) return;
-
-      const nextIds = [...selectedIds, savedCliente.id];
-      updateSelectedClientes(nextIds);
-      setNewClienteData({
-        tipoDocumento: tiposDocumentoPermitidos.length ? String(tiposDocumentoPermitidos[0].id) : '',
-        numDocumento: '',
-        nombre: '',
-        telefono: '',
-        empresaId: '',
-      });
-      setNewPhoneCountry('PE');
-      setShowNewForm(false);
-      setSearchTerm('');
-      onAddModeChange?.(false);
-    } catch (error) {
-      console.error('Error guardando cliente:', error);
-    }
-  };
-
-  const openNewForm = () => {
-    setShowNewForm(true);
-    setSearchTerm('');
-    onAddModeChange?.(true);
-  };
-
-  const closeNewForm = () => {
-    setShowNewForm(false);
-    onAddModeChange?.(false);
-  };
-
   return (
     <div className="checkin-clients-section">
       <div className="clients-controls">
@@ -289,259 +119,95 @@ export default function CheckInClienteList({
         <select
           value={filterTipoCliente}
           onChange={(e) => setFilterTipoCliente(e.target.value)}
-          style={{ width: 126, padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', fontSize: 12.5, color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit' }}
+          style={{ ...inputStyle, width: 126 }}
         >
           <option value="TODOS">Todos</option>
           <option value="EMPRESA">Empresa</option>
           <option value="EXTERNO">Externo</option>
         </select>
         <button
-          className={`add-client-top ${showNewForm ? 'active' : ''}`}
-          title={showNewForm ? 'Ocultar formulario de agregar' : 'Agregar huésped'}
+          className={`add-client-top ${showNewModal ? 'active' : ''}`}
+          title="Registrar nuevo huésped"
           type="button"
-          onClick={openNewForm}
+          onClick={() => setShowNewModal(true)}
         >
           <Plus size={16} />
         </button>
       </div>
 
-      {!showNewForm && (
-        <div className="clients-available-list">
-          {filteredClientes.length === 0 ? (
-            <div className="empty-search">No se encontraron clientes</div>
-          ) : (
-            filteredClientes.map((cliente) => {
-              const isSelected = selectedIds.includes(cliente.id);
-              return (
-                <div key={cliente.id} className={`client-row ${isSelected ? 'selected' : ''}`}>
-                  <Checkbox.Root
-                    className="rudimentr-checkbox"
-                    checked={isSelected}
-                    onCheckedChange={() => toggleSelectCliente(cliente)}
-                    id={`cliente-${cliente.id}`}
-                  >
-                    <Checkbox.Indicator>
-                      <Check size={14} />
-                    </Checkbox.Indicator>
-                  </Checkbox.Root>
+      <div className="clients-available-list">
+        {filteredClientes.length === 0 ? (
+          <div className="empty-search">No se encontraron clientes</div>
+        ) : (
+          filteredClientes.map((cliente) => {
+            const isSelected = selectedIds.includes(cliente.id);
+            const docLabel = cliente.tipoDocumento?.nombre || cliente.tipoDocumento || 'DNI';
+            return (
+              <div key={cliente.id} className={`client-row ${isSelected ? 'selected' : ''}`}>
+                <Checkbox.Root
+                  className="rudimentr-checkbox"
+                  checked={isSelected}
+                  onCheckedChange={() => toggleSelectCliente(cliente)}
+                  id={`cliente-${cliente.id}`}
+                >
+                  <Checkbox.Indicator>
+                    <Check size={14} />
+                  </Checkbox.Indicator>
+                </Checkbox.Root>
 
-                  <div className="client-row-text" onClick={() => toggleSelectCliente(cliente)}>
-                    <strong>{cliente.nombre}</strong>
-                    <span>{cliente.tipoDocumento?.nombre || cliente.tipoDocumento || 'DNI'}: {cliente.numDocumento || '—'}{cliente.empresaNombre ? ` · ${cliente.empresaNombre}` : ''}</span>
-                  </div>
-                  <div className="client-row-actions">
-                    {isSelected && (
-                      <button
-                        type="button"
-                        onClick={() => onRepresentativeChange?.(cliente.id)}
-                        style={{
-                          background: representativeId === cliente.id ? 'var(--accent-light)' : undefined,
-                          borderColor: representativeId === cliente.id ? 'var(--accent-mid)' : undefined,
-                          fontWeight: representativeId === cliente.id ? 700 : 500,
-                        }}
-                      >
-                        {representativeId === cliente.id ? 'Representante' : 'Marcar rep.'}
-                      </button>
-                    )}
-                    <button type="button" onClick={() => startEditCliente(cliente)}>Editar</button>
-                    {isAdmin && (
-                      <button type="button" onClick={() => removeCliente(cliente.id)}>Eliminar</button>
-                    )}
-                  </div>
+                <div className="client-row-text" onClick={() => toggleSelectCliente(cliente)}>
+                  <strong>{cliente.nombre}</strong>
+                  <span className="client-row-doc">{docLabel}: {cliente.numDocumento || '—'}</span>
+                  {cliente.empresaNombre && (
+                    <span className="client-row-empresa">{cliente.empresaNombre}</span>
+                  )}
                 </div>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      <Modal open={!!editingCliente} onOpenChange={(open) => !open && setEditingCliente(null)} title="Editar cliente" width={400}>
-        {editingCliente && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <Field label="Nombre" required>
-              <input
-                type="text"
-                value={editClienteData.nombre}
-                onChange={(e) => setEditClienteData((s) => ({ ...s, nombre: e.target.value }))}
-                placeholder="Nombre completo"
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-              />
-            </Field>
-
-            <Field label="Tipo de documento" required>
-              <select
-                value={editClienteData.tipoDocumento?.id ?? ''}
-                onChange={(e) => {
-                  const selectedId = Number(e.target.value);
-                  const selectedTipo = tiposDocumentoPermitidos.find((td) => td.id === selectedId) || null;
-                  setEditClienteData((s) => ({ ...s, tipoDocumento: selectedTipo }));
-                }}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-              >
-                {tiposDocumentoPermitidos.map((td) => (
-                  <option key={td.id} value={td.id}>{td.nombre}</option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Número de documento" required>
-              <input
-                type="text"
-                value={editClienteData.numDocumento}
-                onChange={(e) => setEditClienteData((s) => ({ ...s, numDocumento: e.target.value }))}
-                placeholder="DNI / CE / PASAPORTE"
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-              />
-            </Field>
-
-            <Field label="Teléfono">
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 42%) 1fr', gap: '8px' }}>
-                <select
-                  value={editPhoneCountry}
-                  onChange={(e) => setEditPhoneCountry(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-                >
-                  {countryDialOptions.map((country) => (
-                    <option key={country.code} value={country.code}>{country.label}</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={editClienteData.telefono}
-                  onChange={(e) => setEditClienteData((s) => ({ ...s, telefono: e.target.value }))}
-                  placeholder="Número"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-                />
+                <div className="client-row-actions">
+                  {isSelected && (
+                    <button
+                      type="button"
+                      onClick={() => onRepresentativeChange?.(cliente.id)}
+                      className={representativeId === cliente.id ? 'rep-active' : ''}
+                    >
+                      {representativeId === cliente.id ? 'Representante' : 'Marcar rep.'}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => startEditCliente(cliente)}>Editar</button>
+                  {isAdmin && (
+                    <button type="button" onClick={() => setDeleteConfirmId(cliente.id)}>Eliminar</button>
+                  )}
+                </div>
               </div>
-            </Field>
-
-            <Field label="Empresa">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-muted)' }}>
-                  <input
-                    type="checkbox"
-                    checked={editEmpresaEnabled}
-                    disabled={!isAdmin}
-                    onChange={(e) => {
-                      if (!isAdmin) return;
-                      const enabled = e.target.checked;
-                      setEditEmpresaEnabled(enabled);
-                      if (!enabled) {
-                        setEditClienteData((s) => ({ ...s, empresaId: '' }));
-                      } else if (!editClienteData.empresaId && empresas.length) {
-                        setEditClienteData((s) => ({ ...s, empresaId: String(empresas[0].id) }));
-                      }
-                    }}
-                  />
-                  Pertenece a una empresa
-                </label>
-                <select
-                  value={editClienteData.empresaId}
-                  onChange={(e) => setEditClienteData((s) => ({ ...s, empresaId: e.target.value }))}
-                  disabled={!editEmpresaEnabled || !isAdmin}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: 'var(--r-sm)',
-                    border: '1px solid var(--border)',
-                    opacity: (editEmpresaEnabled && isAdmin) ? 1 : 0.6,
-                    cursor: (editEmpresaEnabled && isAdmin) ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  <option value="" disabled>Selecciona una empresa</option>
-                  {empresas.map((emp) => (
-                    <option key={emp.id} value={String(emp.id)}>{emp.nombre} ({emp.ruc})</option>
-                  ))}
-                </select>
-              </div>
-            </Field>
-
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-              <Btn onClick={saveEditCliente}>Guardar</Btn>
-            </div>
-          </div>
+            );
+          })
         )}
-      </Modal>
+      </div>
 
-      {showNewForm && (
-        <div className="add-client-panel">
-          <Field label="Tipo de documento" required>
-            <select
-              value={newClienteData.tipoDocumento}
-              onChange={(e) => setNewClienteData({ ...newClienteData, tipoDocumento: e.target.value })}
-              style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-            >
-              {tiposDocumentoPermitidos.map(td => (
-                <option key={td.id} value={String(td.id)}>{td.nombre}</option>
-              ))}
-            </select>
-          </Field>
+      {/* Modal compartido — editar */}
+      <ClienteFormModal
+        open={!!editingCliente}
+        onOpenChange={(open) => !open && setEditingCliente(null)}
+        cliente={editingCliente}
+        onSaved={handleEditSaved}
+      />
 
-          <Field label="Número de documento" required>
-            <input
-              type="text"
-              value={newClienteData.numDocumento}
-              onChange={(e) => setNewClienteData({ ...newClienteData, numDocumento: e.target.value })}
-              style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-              placeholder="Documento"
-            />
-          </Field>
+      {/* Modal compartido — crear (misma UX que editar) */}
+      <ClienteFormModal
+        open={showNewModal}
+        onOpenChange={(open) => {
+          setShowNewModal(open);
+          if (!open) onAddModeChange?.(false);
+        }}
+        cliente={null}
+        onSaved={handleNewSaved}
+      />
 
-          <Field label="Nombre completo" required>
-            <input
-              type="text"
-              value={newClienteData.nombre}
-              onChange={(e) => setNewClienteData({ ...newClienteData, nombre: e.target.value })}
-              style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-              placeholder="Nombre del huésped"
-            />
-          </Field>
-
-          <Field label="Teléfono" required>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 42%) 1fr', gap: '8px' }}>
-              <select
-                value={newPhoneCountry}
-                onChange={(e) => setNewPhoneCountry(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-              >
-                {countryDialOptions.map((country) => (
-                  <option key={country.code} value={country.code}>{country.label}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={newClienteData.telefono}
-                onChange={(e) => setNewClienteData({ ...newClienteData, telefono: e.target.value })}
-                style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-                placeholder="Número"
-              />
-            </div>
-          </Field>
-
-          <Field label="Empresa (opcional)">
-            <select
-              value={newClienteData.empresaId}
-              onChange={(e) => setNewClienteData({ ...newClienteData, empresaId: e.target.value })}
-              style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)' }}
-            >
-              <option value="">Sin empresa</option>
-              {empresas.map(emp => (
-                <option key={emp.id} value={String(emp.id)}>{emp.nombre} ({emp.ruc})</option>
-              ))}
-            </select>
-          </Field>
-
-          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-            <Btn onClick={saveNewCliente} variant="primary" full>
-              Guardar cliente
-            </Btn>
-            <Btn variant="ghost" onClick={closeNewForm} full>
-              Cancelar
-            </Btn>
-          </div>
-        </div>
-      )}
-
+      <ConfirmDialog
+        open={!!deleteConfirmId}
+        onOpenChange={setDeleteConfirmId}
+        onConfirm={() => removeCliente(deleteConfirmId)}
+        message="¿Eliminar este cliente? Esta acción no se puede deshacer."
+      />
     </div>
   );
 }

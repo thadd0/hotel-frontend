@@ -17,7 +17,9 @@ export type TipoHabitacionDTO = {
 
 export type TipoAlquilerDTO = {
   id: number;
-  nombre: 'POR HORA' | 'POR DIA' | 'POR NOCHE';
+  nombre: string;
+  unidad: 'HORA' | 'DIA';
+  multiplicador: number;
 };
 
 // ── Main DTOs (match backend responses exactly) ─────────────────────
@@ -68,6 +70,7 @@ export type AlquilerResponseDTO = {
   numeroHabitacion: string;
   nombreCliente: string;
   empresaNombre?: string;
+  tipoAlquilerNombre?: string;
   totalPagadoCaja?: number;
   subTotal: number;
   pagoPendiente: number;
@@ -89,9 +92,9 @@ export type CuentaAlquilerDTO = {
 
 export type MovimientoCajaResponseDTO = {
   id: number;
-  tipo: 'INGRESO' | 'EGRESO';
+  tipo: 'INGRESO' | 'INGRESO_EXTRA' | 'EGRESO';
   monto: number;
-  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'PLIN';
   concepto: string;
   fecha: string;
   nombreUsuario: string;
@@ -117,7 +120,7 @@ export type LoginRequest = {
 
 export type AuthResponse = {
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string;
   token_type: string;
   numDocumento: string;
   nombre: string;
@@ -130,12 +133,12 @@ export type CheckInRequestDTO = {
   idTipoAlquiler: number;
   cantTiempo: number;
   adelanto?: number;
-  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'PLIN';
 };
 
 export type GastoRequestDTO = {
   concepto: string;
   monto: number;
-  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'PLIN';
 };
 

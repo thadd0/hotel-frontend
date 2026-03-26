@@ -224,13 +224,6 @@
   background: var(--accent-light);
 }
 
-.client-row-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
 .add-client-top {
   width: 34px;
   height: 34px;
@@ -254,11 +247,39 @@
   transform: translateY(-1px);
 }
 
-.add-client-panel {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  padding: 11px;
+/* ── Client row text ─── */
+.client-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.client-row-doc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.client-row-empresa {
+  font-size: 11px;
+  color: var(--accent-dark);
+  font-weight: 500;
+}
+
+/* ── Client row actions pushed right ─── */
+.client-row-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.client-row-actions button.rep-active {
+  background: var(--accent-light);
+  border-color: var(--accent-mid, var(--accent));
+  font-weight: 700;
 }
 
 .clients-list {
@@ -334,20 +355,6 @@
 .client-row.selected {
   border-color: var(--accent);
   background: var(--accent-light);
-}
-
-.client-row-text {
-  display: flex;
-  flex-direction: column;
-  cursor: pointer;
-  min-width: 0;
-}
-
-.client-row-actions {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  position: relative;
 }
 
 .client-row-actions button,
@@ -699,6 +706,33 @@
 
 .duration-fixed {
   min-height: 90px;
+}
+
+.salida-preview {
+  margin-top: 14px;
+  width: 100%;
+  border: 2px solid var(--accent-light);
+  border-radius: var(--r-lg);
+  background: var(--accent-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 2px;
+}
+
+.salida-preview-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.salida-preview-date {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-dark);
 }
 
 @media (max-width: 600px) {

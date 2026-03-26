@@ -5,10 +5,6 @@ export const getTarifas = async (): Promise<TarifaDTO[]> => {
   return apiFetch('/api/recepcion/tarifas');
 };
 
-export const getTarifa = async (id: number): Promise<TarifaDTO> => {
-  return apiFetch(`/api/recepcion/tarifas/${id}`);
-};
-
 export const postTarifa = async (data: Omit<TarifaDTO, 'id'>): Promise<TarifaDTO> => {
   return apiFetch('/api/recepcion/tarifas', {
     method: 'POST',

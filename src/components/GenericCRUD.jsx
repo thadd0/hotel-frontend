@@ -1,44 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Btn, Card, Table, tdStyle, EditBtn, DeleteBtn,
   Modal, ConfirmDialog, EmptyState, Pagination,
   Field, inputStyle, inputFocus, inputBlur, SwitchField,
-  useToast,
+  PageHeader, SearchInput, filterLabel, useToast,
 } from './UI/index.jsx';
 import { Plus } from 'lucide-react';
-import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
+import { COUNTRY_DIAL_OPTIONS, parseIntlPhone, buildIntlPhone } from '../utils/phone';
 
 const PER_PAGE = 10;
-
-const COUNTRY_DIAL_OPTIONS = getCountries()
-  .map((code) => ({
-    code,
-    dialCode: `+${getCountryCallingCode(code)}`,
-  }))
-  .sort((a, b) => a.code.localeCompare(b.code));
-
-function parseIntlPhone(rawPhone) {
-  const raw = String(rawPhone || '').trim();
-  const match = raw.match(/^(\+\d{1,4})\s*(.*)$/);
-  if (!match) {
-    return { countryCode: 'PE', number: raw };
-  }
-
-  const dialCode = match[1];
-  const number = match[2] || '';
-  const found = COUNTRY_DIAL_OPTIONS.find((c) => c.dialCode === dialCode);
-  return {
-    countryCode: found?.code || 'PE',
-    number,
-  };
-}
-
-function buildIntlPhone(countryCode, number) {
-  const cleanNumber = String(number || '').trim();
-  if (!cleanNumber) return '';
-  const dialCode = COUNTRY_DIAL_OPTIONS.find((c) => c.code === countryCode)?.dialCode || '+51';
-  return `${dialCode} ${cleanNumber}`;
-}
 
 export default function GenericCRUD({
   items, onAdd, onUpdate, onDelete,
@@ -47,14 +17,30 @@ export default function GenericCRUD({
   readOnly = false,
   showVisible = false,
   elevatedInputs = false,
+  pageTitle,
+  pageSubtitle,
+  searchPlaceholder = 'Buscar…',
+  searchKeys,
+  toolbarPrefix,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [editId,    setEditId]    = useState(null);
   const [form,      setForm]      = useState({});
   const [errors,    setErrors]    = useState({});
   const [confirmId, setConfirmId] = useState(null);
   const [page,      setPage]      = useState(1);
+  const [search,    setSearch]    = useState('');
   const addToast = useToast();
+
+  const keys = searchKeys ?? columns.map(c => c.key);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(item =>
+      keys.some(k => String(item[k] ?? '').toLowerCase().includes(q))
+    );
+  }, [items, search, keys]);
 
   const buildEmpty = () => {
     const obj = {};
@@ -117,27 +103,48 @@ export default function GenericCRUD({
         delete payload[`${f.key}Enabled`];
       }
     });
+    setSubmitting(true);
     try {
       editId ? await onUpdate(editId, payload) : await onAdd(payload);
       addToast(editId ? 'Registro actualizado' : 'Registro creado', 'success');
       setModalOpen(false);
-    } catch {
-      addToast('Error al guardar el registro', 'error');
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al guardar el registro', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const paged = items.slice((page-1)*PER_PAGE, page*PER_PAGE);
+  const paged = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
   const controlStyle = elevatedInputs
     ? { ...inputStyle, boxShadow: 'var(--shadow-sm)', borderColor: 'var(--border)' }
     : inputStyle;
 
   return (
     <div className="page-anim">
-      {!readOnly && (
-        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:18 }}>
-          <Btn icon={<Plus size={14}/>} onClick={openNew}>Nuevo</Btn>
-        </div>
+      {pageTitle && (
+        <PageHeader title={pageTitle} subtitle={pageSubtitle ? `${pageSubtitle} · ${filtered.length}` : `${filtered.length}`}>
+          {!readOnly && <Btn icon={<Plus size={14}/>} onClick={openNew}>Nuevo</Btn>}
+        </PageHeader>
       )}
+
+      <Card padding="12px 16px" style={{ marginBottom: 18 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: toolbarPrefix ? 'center' : 'flex-end' }}>
+          {toolbarPrefix}
+          <div style={{ flex: 1, minWidth: 180 }}>
+            {!toolbarPrefix && <label style={filterLabel}>Buscar</label>}
+            <SearchInput
+              value={search}
+              onChange={v => { setSearch(v); setPage(1); }}
+              placeholder={searchPlaceholder}
+            />
+          </div>
+          {!pageTitle && !readOnly && (
+            <Btn icon={<Plus size={14}/>} onClick={openNew} style={{ marginBottom: 1 }}>Nuevo</Btn>
+          )}
+        </div>
+      </Card>
 
       <Card>
         {paged.length === 0 ? (
@@ -168,7 +175,7 @@ export default function GenericCRUD({
           </Table>
         )}
         <div style={{ padding:'0 16px 4px' }}>
-          <Pagination page={page} total={items.length} perPage={PER_PAGE} onChange={setPage} />
+          <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
         </div>
       </Card>
 
@@ -281,7 +288,7 @@ export default function GenericCRUD({
           )}
           <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' }}>
             <Btn variant="ghost" onClick={()=>setModalOpen(false)}>Cancelar</Btn>
-            <Btn onClick={handleSubmit}>{editId ? 'Guardar cambios' : 'Crear'}</Btn>
+            <Btn onClick={handleSubmit} disabled={submitting}>{editId ? 'Guardar cambios' : 'Crear'}</Btn>
           </div>
         </Modal>
       )}
@@ -289,7 +296,7 @@ export default function GenericCRUD({
         <ConfirmDialog
           open={!!confirmId}
           onOpenChange={open=>!open&&setConfirmId(null)}
-          onConfirm={async ()=>{ try { await onDelete(confirmId); addToast('Registro eliminado', 'info'); } catch { addToast('Error al eliminar', 'error'); } setConfirmId(null); }}
+          onConfirm={async ()=>{ try { await onDelete(confirmId); addToast('Registro eliminado', 'info'); } catch (error) { const msg = error?.response?.data?.message; addToast(msg || 'Error al eliminar', 'error'); } setConfirmId(null); }}
         />
       )}
     </div>

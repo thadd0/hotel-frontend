@@ -5,10 +5,6 @@ export async function getClientes(): Promise<ClienteDTO[]> {
   return apiFetch('/api/recepcion/clientes');
 }
 
-export async function getCliente(id: number): Promise<ClienteDTO> {
-  return apiFetch(`/api/recepcion/clientes/${id}`);
-}
-
 export async function postCliente(data: Omit<ClienteDTO, 'id'>): Promise<ClienteDTO> {
   return apiFetch('/api/recepcion/clientes', {
     method: 'POST',

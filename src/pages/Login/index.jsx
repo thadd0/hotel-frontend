@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Card, Btn } from '../../components/UI/index.jsx';
 import { Label } from '@radix-ui/react-label';
-import { LogIn, Loader2 } from 'lucide-react';
+import { LogIn, Loader2, Hotel } from 'lucide-react';
 import { login as apiLogin } from '../../auth/api';
 
 export default function Login() {
@@ -39,15 +39,45 @@ export default function Login() {
       alignItems: 'center',
       justifyContent: 'center',
       height: '100vh',
-      background: 'var(--bg)',
+      background: 'linear-gradient(135deg, var(--accent-light) 0%, var(--bg) 50%, var(--surface-2) 100%)',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
-      <Card style={{ width: '100%', maxWidth: 400, padding: '32px', margin: '0 16px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
-            Iniciar Sesión
+      {/* Decorative accent circle */}
+      <div style={{
+        position: 'absolute', top: '-15%', right: '-10%',
+        width: 500, height: 500, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(212,134,12,.07) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '-20%', left: '-5%',
+        width: 400, height: 400, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(212,134,12,.05) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
+      <Card style={{
+        width: '100%', maxWidth: 400, padding: '36px 32px', margin: '0 16px',
+        boxShadow: 'var(--shadow-lg)', position: 'relative', zIndex: 1,
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <img src="/logo.png" alt="Hospedaje ARROYO" style={{
+            width: 80, height: 80, objectFit: 'contain', marginBottom: 14,
+          }} onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'inline-flex'; }} />
+          <div style={{
+            width: 52, height: 52, borderRadius: 'var(--r-lg)',
+            background: 'var(--accent-light)', border: '1.5px solid var(--accent-mid)',
+            display: 'none', alignItems: 'center', justifyContent: 'center',
+            marginBottom: 14, margin: '0 auto 14px',
+          }}>
+            <Hotel size={24} color="var(--accent)" strokeWidth={2} />
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0, letterSpacing: '-0.3px' }}>
+            Hospedaje ARROYO
           </h2>
-          <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '8px 0 0' }}>
-            Accede al panel de administración del hotel
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 0' }}>
+            Ingresa tus credenciales para acceder al sistema
           </p>
         </div>
 
@@ -71,9 +101,10 @@ export default function Login() {
                 background: 'var(--surface)',
                 color: 'var(--text)',
                 outline: 'none',
+                transition: 'border-color .15s, box-shadow .15s',
               }}
-              onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
-              onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
+              onFocus={(e) => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px rgba(212,134,12,.15)'; }}
+              onBlur={(e) => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
             />
           </div>
 
@@ -96,14 +127,20 @@ export default function Login() {
                 background: 'var(--surface)',
                 color: 'var(--text)',
                 outline: 'none',
+                transition: 'border-color .15s, box-shadow .15s',
               }}
-              onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
-              onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
+              onFocus={(e) => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px rgba(212,134,12,.15)'; }}
+              onBlur={(e) => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
             />
           </div>
 
           {error && (
-            <div style={{ marginBottom: 16, padding: '8px 12px', background: 'var(--red-light)', border: '1px solid var(--red)', borderRadius: 'var(--r-sm)', color: 'var(--red)', fontSize: 14 }}>
+            <div style={{
+              marginBottom: 16, padding: '10px 14px',
+              background: 'var(--red-bg)', border: '1px solid var(--red-border)',
+              borderRadius: 'var(--r-md)', color: 'var(--red)',
+              fontSize: 13, fontWeight: 500, lineHeight: 1.4,
+            }}>
               {error}
             </div>
           )}
@@ -112,6 +149,10 @@ export default function Login() {
             {loading ? 'Ingresando…' : 'Iniciar Sesión'}
           </Btn>
         </form>
+
+        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-xmuted)', marginTop: 24, marginBottom: 0 }}>
+          Sistema de gestión hotelera v1.0
+        </p>
       </Card>
     </div>
   );

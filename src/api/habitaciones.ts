@@ -5,22 +5,6 @@ export async function getHabitaciones() {
   return apiFetch<HabitacionDTO[]>('/api/recepcion/habitaciones');
 }
 
-export async function getHabitacionesDisponibles() {
-  return apiFetch<HabitacionDTO[]>('/api/recepcion/habitaciones/disponibles');
-}
-
-export async function getHabitacionesByEstado(estado: string) {
-  return apiFetch<HabitacionDTO[]>('/api/recepcion/habitaciones/estado', { params: { estado } });
-}
-
-export async function getHabitacionesByTipo(tipo: string) {
-  return apiFetch<HabitacionDTO[]>('/api/recepcion/habitaciones/tipo', { params: { tipo } });
-}
-
-export async function getHabitacion(id: number) {
-  return apiFetch<HabitacionDTO>(`/api/recepcion/habitaciones/${id}`);
-}
-
 export async function postHabitacion(habitacion: Omit<HabitacionDTO, 'id'>) {
   return apiFetch<HabitacionDTO>('/api/recepcion/habitaciones', {
     method: 'POST',

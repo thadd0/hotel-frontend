@@ -31,16 +31,17 @@ export default function Sidebar({ open, onClose }) {
   return (
     <aside className={`sidebar${open ? ' sidebar--open' : ''}`}>
       <div style={s.logo}>
-        <div style={s.logoMark}>
+        <img src="/logo.png" alt="Hospedaje ARROYO" style={s.logoImg} onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+        <div style={{ ...s.logoMark, display: 'none' }}>
           <Hotel size={18} color="var(--accent)" strokeWidth={2} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={s.logoName}>HotelAdmin</div>
+          <div style={s.logoName}>Hospedaje ARROYO</div>
           <div style={s.logoTag}>Sistema de gestión</div>
         </div>
         <button className="sidebar-close" onClick={onClose} style={{
           border: 'none', background: 'none', cursor: 'pointer', padding: 4,
-          color: 'var(--text-muted)', display: 'none',
+          color: 'var(--text-muted)',
         }}>
           <X size={18} />
         </button>
@@ -67,6 +68,7 @@ export default function Sidebar({ open, onClose }) {
                 ...s.iconBox,
                 background: active ? 'var(--accent)' : 'var(--surface-2)',
                 color: active ? '#fff' : 'var(--text-muted)',
+                boxShadow: active ? '0 0 8px rgba(212,134,12,.3)' : 'none',
               }}>
                 <Icon size={14} strokeWidth={active ? 2.2 : 1.8} />
               </span>
@@ -78,6 +80,7 @@ export default function Sidebar({ open, onClose }) {
                 <span style={{
                   width:3, height:20, borderRadius:2,
                   background:'var(--accent)', flexShrink:0, marginLeft:4,
+                  boxShadow:'0 0 6px rgba(212,134,12,.4)',
                 }} />
               )}
             </Link>
@@ -143,10 +146,15 @@ const s = {
     display:'flex', alignItems:'center', gap:11,
     padding:'16px 16px 12px',
   },
+  logoImg: {
+    width:36, height:36, borderRadius:'var(--r-md)',
+    objectFit:'contain', flexShrink:0,
+  },
   logoMark: {
     width:32, height:32, borderRadius:'var(--r-md)',
     background:'var(--accent-light)', border:'1px solid var(--accent-mid)',
     display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0,
+    boxShadow:'0 0 0 4px rgba(212,134,12,.1)',
   },
   logoName: {
     fontSize:14, fontWeight:800, color:'var(--text)', letterSpacing:'-0.3px',

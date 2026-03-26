@@ -19,7 +19,6 @@ export default function Empresa() {
   ];
 
   return (
-    <div className="page-anim">
       <GenericCRUD
         items={empresas}
         onAdd={addEmpresa}
@@ -31,8 +30,10 @@ export default function Empresa() {
         emptyIcon={<Building2 size={42} />}
         modalTitle="Empresa"
         readOnly={readOnly}
+        pageTitle="Empresas"
+        pageSubtitle="Gestión de empresas"
+        searchPlaceholder="Razón social, RUC, teléfono…"
       />
-    </div>
   );
 }
 

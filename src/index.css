@@ -1,11 +1,11 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Marca */
-  --accent:        #0d9488;
-  --accent-dark:   #0f766e;
-  --accent-light:  #f0fdfa;
-  --accent-mid:    #ccfbf1;
+  /* Marca — paleta Hospedaje ARROYO (naranja cálido + marrón) */
+  --accent:        #d4860c;
+  --accent-dark:   #a96b08;
+  --accent-light:  #fdf7ed;
+  --accent-mid:    #fce8c4;
 
   /* Neutrales — piedra cálida */
   --bg:            #fafaf9;
@@ -23,8 +23,8 @@
   /* Barra lateral */
   --side-bg:       #ffffff;
   --side-border:   #f0ede8;
-  --side-active-bg:#f0fdfa;
-  --side-active:   #0d9488;
+  --side-active-bg:#fdf7ed;
+  --side-active:   #d4860c;
   --side-hover:    #fafaf9;
   --side-text:     #57534e;
 
@@ -80,9 +80,36 @@ body {
 button { cursor: pointer; font-family: inherit; }
 input, select, textarea { font-family: inherit; }
 
+/* Focus visible ring (keyboard navigation) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(212,134,12,.15);
+}
+
 /* Spinner animation */
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Skeleton shimmer */
+.skeleton-pulse { animation: shimmer 1.5s ease infinite; }
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Tabla: cebra */
+tbody tr:nth-child(even) { background: var(--surface-2); }
+tbody tr { transition: background .12s; }
+tbody tr:hover { background: var(--accent-light) !important; }
 
 /* Entrada de página */
 @keyframes pageIn {
@@ -100,6 +127,23 @@ input, select, textarea { font-family: inherit; }
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Stagger animation for grid cards */
+@keyframes cardIn {
+  from { opacity:0; transform: translateY(12px) scale(.97); }
+  to   { opacity:1; transform: translateY(0) scale(1); }
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity:1; }
+  50%      { opacity:.65; }
+}
+
+/* Float animation for empty states */
+@keyframes gentleFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
 }
 
 .page-anim { animation: pageIn .22s ease; }
@@ -159,6 +203,8 @@ input, select, textarea { font-family: inherit; }
   transform: translate(-50%,-50%);
   z-index: 900;
   width: calc(100vw - 32px);
+  max-height: 92vh;
+  overflow-y: auto;
   animation: modalIn .2s ease;
 }
 
@@ -256,8 +302,10 @@ input, select, textarea { font-family: inherit; }
 }
 .app-header {
   height: 58px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(231,229,228,0.6);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -440,6 +488,10 @@ input, select, textarea { font-family: inherit; }
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Menu toggle + sidebar close: hidden on desktop, visible on mobile */
+.menu-toggle { display: none !important; }
+.sidebar-close { display: none !important; }
 
 /* ═══ Responsive breakpoints ═════════════════════════════════════ */
 

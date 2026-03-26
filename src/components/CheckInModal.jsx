@@ -3,6 +3,7 @@ import CheckInClienteList from "./CheckInClienteList.jsx";
 import { useHotel } from "../context/HotelContext.jsx";
 import { Modal, Btn, Field, inputStyle, inputFocus, inputBlur } from "./UI/index.jsx";
 import { LogIn } from "lucide-react";
+import { sanitizeDecimal, METODOS_PAGO } from "../utils/formHelpers";
 import "./CheckInModal.css";
 
 export default function CheckInModal({
@@ -43,18 +44,7 @@ export default function CheckInModal({
   const canFinish = canProceedStep3 && canProceedStep2 && canProceedStep1;
 
   const handleAdelantoChange = (rawValue) => {
-    const normalized = String(rawValue || '').replace(',', '.');
-    const cleaned = normalized.replace(/[^\d.]/g, '');
-    const parts = cleaned.split('.');
-    const safe = parts.length > 2
-      ? `${parts[0]}.${parts.slice(1).join('')}`
-      : cleaned;
-    const [intPart = '', decPart = ''] = safe.split('.');
-    const hasDecimalPoint = safe.includes('.');
-    const limited = hasDecimalPoint
-      ? `${intPart}.${decPart.slice(0, 2)}`
-      : intPart;
-    setAdelanto(limited);
+    setAdelanto(sanitizeDecimal(rawValue));
   };
 
   // Get tarifa for the selected room and tipo alquiler
@@ -119,7 +109,7 @@ export default function CheckInModal({
     <Modal
       open={open}
       onOpenChange={handleClose}
-      title="Check-In"
+      title={`Check-In — ${STEPS.find(s => s.num === step)?.label || ''}`}
       width={700}
       aria-describedby="checkin-desc"
       description="Registro de check-in de huéspedes"
@@ -165,7 +155,38 @@ export default function CheckInModal({
       )}
 
       {/* PASO 2: TIPO DE ALQUILER + DURACIÓN */}
-      {step === 2 && (
+      {step === 2 && (() => {
+        const selectedTipo = tiposAlquiler.find(t => String(t.id) === tipoAlquilerId);
+        const unidad = selectedTipo?.unidad || 'DIA';
+        const mult = selectedTipo?.multiplicador || 1;
+
+        /* Derive human-readable unit label from nombre */
+        const unitLabel = (() => {
+          if (!selectedTipo) return 'unidades de tiempo';
+          const n = selectedTipo.nombre.toUpperCase();
+          if (n.includes('HORA')) return cantTiempo === 1 ? 'hora' : 'horas';
+          if (n.includes('NOCHE')) return cantTiempo === 1 ? 'noche' : 'noches';
+          if (n.includes('SEMANA')) return cantTiempo === 1 ? 'semana' : 'semanas';
+          if (n.includes('MES')) return cantTiempo === 1 ? 'mes' : 'meses';
+          return cantTiempo === 1 ? 'día' : 'días';
+        })();
+
+        /* Live preview of salida estimada */
+        const salidaPreview = (() => {
+          if (!selectedTipo) return null;
+          const now = new Date();
+          const totalMs = unidad === 'HORA'
+            ? cantTiempo * mult * 3600000
+            : cantTiempo * mult * 86400000;
+          const target = new Date(now.getTime() + totalMs);
+          const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+          const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+          const hh = String(target.getHours()).padStart(2, '0');
+          const mi = String(target.getMinutes()).padStart(2, '0');
+          return `${dias[target.getDay()]} ${target.getDate()} de ${meses[target.getMonth()]} ${target.getFullYear()} — ${hh}:${mi}`;
+        })();
+
+        return (
         <div className="step-wrapper">
           <div className="step-header">
             <h3>Paso 2 de 4: Tipo de Alquiler + Duración</h3>
@@ -188,15 +209,26 @@ export default function CheckInModal({
               ))}
             </div>
 
-            <div className="hours-controls">
-              <Field label="Cantidad de tiempo" required>
-                <div className="hours-only-wrap">
-                  <button type="button" className="hours-step" onClick={() => setCantTiempo(Math.max(1, cantTiempo - 1))}>-</button>
-                  <span className="hours-value">{cantTiempo}</span>
-                  <button type="button" className="hours-step" onClick={() => setCantTiempo(cantTiempo + 1)}>+</button>
+            {selectedTipo && (
+              <>
+                <div className="hours-controls">
+                  <Field label={`Cantidad de ${unitLabel}`} required>
+                    <div className="hours-only-wrap">
+                      <button type="button" className="hours-step" onClick={() => setCantTiempo(Math.max(1, cantTiempo - 1))}>-</button>
+                      <span className="hours-value">{cantTiempo}</span>
+                      <button type="button" className="hours-step" onClick={() => setCantTiempo(cantTiempo + 1)}>+</button>
+                    </div>
+                  </Field>
                 </div>
-              </Field>
-            </div>
+
+                {salidaPreview && (
+                  <div className="salida-preview">
+                    <span className="salida-preview-label">Salida estimada</span>
+                    <span className="salida-preview-date">{salidaPreview}</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="step-footer">
@@ -208,7 +240,8 @@ export default function CheckInModal({
             </Btn>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* PASO 3: HABITACIÓN */}
       {step === 3 && (
@@ -334,14 +367,11 @@ export default function CheckInModal({
               )}
             </div>
 
-            {isAdmin && (
+            {canViewTarifa && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Método de pago">
                   <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} style={inputStyle}>
-                    <option value="EFECTIVO">Efectivo</option>
-                    <option value="TARJETA">Tarjeta</option>
-                    <option value="YAPE">Yape</option>
-                    <option value="TRANSFERENCIA">Transferencia</option>
+                    {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                   </select>
                 </Field>
                 <Field label="Adelanto (opcional)">

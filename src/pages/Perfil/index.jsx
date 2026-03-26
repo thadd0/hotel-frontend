@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
 import { useHotel } from '../../context/HotelContext';
-import { Card, Field, Btn, Modal } from '../../components/UI/index.jsx';
+import { Card, Field, Btn, Modal, useToast } from '../../components/UI/index.jsx';
 import { User, KeyRound, Pencil } from 'lucide-react';
 import { getMe, updateMe, changePassword } from '../../api/usuarios';
 
@@ -44,6 +44,7 @@ function buildIntlPhone(countryCode, number) {
 
 export default function Perfil() {
   const { userName, userRole, tiposDocumento } = useHotel();
+  const addToast = useToast();
   const tiposDocumentoPermitidos = useMemo(() => {
     const allowed = ['DNI', 'CE', 'PASAPORTE'];
     const source = Array.isArray(tiposDocumento) && tiposDocumento.length
@@ -56,35 +57,23 @@ export default function Perfil() {
     return source.filter((td) => allowed.includes(td?.nombre));
   }, [tiposDocumento]);
 
-  // Mock profile data aligned to UsuarioDTO
-  const [perfil, setPerfil] = useState({
-    id: 1,
-    nombre: userName || 'Admin',
-    numDocumento: '72345678',
-    telefono: '+51 987 654 321',
-    tipoDocumento: { id: 1, nombre: 'DNI' },
-    rol: { id: 1, nombre: userRole === 'admin' ? 'ROLE_ADMINISTRADOR' : 'ROLE_RECEPCIONISTA' },
-  });
+  const [perfil, setPerfil] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
-  // Load real profile from backend (/api/me)
   useEffect(() => {
     let alive = true;
-
     (async () => {
       try {
         const me = await getMe();
         if (!alive) return;
-        if (me?.id) {
-          setPerfil(me);
-        }
+        setPerfil(me);
       } catch {
-        // Keep fallback mock profile when backend is unavailable
+        if (alive) addToast('Error al cargar perfil', 'error');
+      } finally {
+        if (alive) setLoadingProfile(false);
       }
     })();
-
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   // Edit profile modal
@@ -96,8 +85,10 @@ export default function Perfil() {
   const [passOpen, setPassOpen] = useState(false);
   const [passForm, setPassForm] = useState({ currentPassword: '', newPassword: '' });
   const [passErrors, setPassErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   const openEditProfile = () => {
+    if (!perfil) return;
     const parsedPhone = parseIntlPhone(perfil.telefono || '');
     setEditForm({
       nombre: perfil.nombre,
@@ -125,35 +116,43 @@ export default function Perfil() {
       numDocumento: editForm.numDocumento,
       tipoDocumento: editForm.tipoDocumento || null,
     };
+    setSubmitting(true);
     try {
       const updated = await updateMe(payload);
       setPerfil(updated);
-    } catch {
-      const tid = tiposDocumento.find(t => t.nombre === editForm.tipoDocumento);
-      setPerfil(p => ({
-        ...p,
-        nombre: editForm.nombre,
-        telefono: telefonoCompleto,
-        numDocumento: editForm.numDocumento,
-        tipoDocumento: tid || p.tipoDocumento,
-      }));
+      setEditOpen(false);
+      addToast('Perfil actualizado', 'success');
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al actualizar perfil', 'error');
+    } finally {
+      setSubmitting(false);
     }
-    setEditOpen(false);
   }, [editForm, tiposDocumento]);
 
   const handleChangePassword = useCallback(async () => {
     const e = {};
     if (!passForm.currentPassword?.trim()) e.currentPassword = 'Requerido';
     if (!passForm.newPassword?.trim()) e.newPassword = 'Requerido';
+    else if (passForm.newPassword.length < 6) e.newPassword = 'Mínimo 6 caracteres';
+    if (!passForm.confirmPassword?.trim()) e.confirmPassword = 'Requerido';
+    else if (passForm.newPassword !== passForm.confirmPassword) e.confirmPassword = 'Las contraseñas no coinciden';
     setPassErrors(e);
     if (Object.keys(e).length) return;
 
     // CambiarPasswordRequestDTO: {currentPassword, newPassword}
+    setSubmitting(true);
     try {
-      await changePassword(passForm);
-    } catch { /* mock fallback */ }
-    setPassOpen(false);
-    setPassForm({ currentPassword: '', newPassword: '' });
+      await changePassword({ currentPassword: passForm.currentPassword, newPassword: passForm.newPassword });
+      setPassOpen(false);
+      setPassForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      addToast('Contraseña cambiada con éxito', 'success');
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al cambiar contraseña', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   }, [passForm]);
 
   return (
@@ -165,10 +164,15 @@ export default function Perfil() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn icon={<Pencil size={14} />} onClick={openEditProfile}>Editar Perfil</Btn>
-          <Btn icon={<KeyRound size={14} />} variant="ghost" onClick={() => { setPassOpen(true); setPassForm({ currentPassword: '', newPassword: '' }); setPassErrors({}); }}>Cambiar Contraseña</Btn>
+          <Btn icon={<KeyRound size={14} />} variant="ghost" onClick={() => { setPassOpen(true); setPassForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); setPassErrors({}); }}>Cambiar Contraseña</Btn>
         </div>
       </div>
 
+      {loadingProfile ? (
+        <p style={{ color: 'var(--text-muted)' }}>Cargando perfil…</p>
+      ) : !perfil ? (
+        <p style={{ color: 'var(--red, #e53935)' }}>No se pudo cargar el perfil.</p>
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
         {/* Profile Card */}
         <Card padding="28px">
@@ -196,6 +200,7 @@ export default function Perfil() {
           </div>
         </Card>
       </div>
+      )}
 
       {/* Edit Profile Modal — ActualizarPerfilRequestDTO */}
       <Modal open={editOpen} onOpenChange={setEditOpen} title="Editar Perfil" width={420}>
@@ -234,7 +239,7 @@ export default function Perfil() {
         </Field>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Btn variant="ghost" onClick={() => setEditOpen(false)}>Cancelar</Btn>
-          <Btn onClick={handleEditSubmit}>Guardar cambios</Btn>
+          <Btn onClick={handleEditSubmit} disabled={submitting}>Guardar cambios</Btn>
         </div>
       </Modal>
 
@@ -246,9 +251,12 @@ export default function Perfil() {
         <Field label="Nueva contraseña" error={passErrors.newPassword} required>
           <input style={inputStyle} type="password" value={passForm.newPassword} onChange={e => setPassForm(p => ({ ...p, newPassword: e.target.value }))} />
         </Field>
+        <Field label="Confirmar nueva contraseña" error={passErrors.confirmPassword} required>
+          <input style={inputStyle} type="password" value={passForm.confirmPassword || ''} onChange={e => setPassForm(p => ({ ...p, confirmPassword: e.target.value }))} />
+        </Field>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Btn variant="ghost" onClick={() => setPassOpen(false)}>Cancelar</Btn>
-          <Btn onClick={handleChangePassword}>Cambiar</Btn>
+          <Btn onClick={handleChangePassword} disabled={submitting}>Cambiar</Btn>
         </div>
       </Modal>
     </div>

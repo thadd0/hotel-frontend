@@ -1,9 +1,7 @@
 import axios from 'axios';
 import {
   getAccessToken,
-  getRefreshToken,
   setAccessToken,
-  setRefreshToken,
   clearAuthStorage,
 } from '../auth/storage';
 
@@ -14,9 +12,10 @@ const client = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // send the HttpOnly refresh_token cookie on every request
 });
 
-// Inject JWT token on every request if available
+// Inject access token on every request
 client.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) {
@@ -25,7 +24,7 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-// Refresh access token on 401 once, then retry original request
+// Refresh access token on 401 — refresh_token cookie is sent automatically
 client.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -39,36 +38,25 @@ client.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const refreshTokenValue = getRefreshToken();
-    if (!refreshTokenValue) {
-      return Promise.reject(error);
-    }
-
     try {
       originalRequest._retry = true;
       const refreshResponse = await axios.post(`${API_BASE}/auth/refresh`, null, {
-        headers: {
-          Authorization: `Bearer ${refreshTokenValue}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        withCredentials: true,
       });
 
       const newAccessToken = refreshResponse?.data?.access_token;
-      const newRefreshToken = refreshResponse?.data?.refresh_token;
       if (!newAccessToken) {
         throw new Error('Refresh response missing access token');
       }
 
       setAccessToken(newAccessToken);
-      if (newRefreshToken) {
-        setRefreshToken(newRefreshToken);
-      }
-
       originalRequest.headers = originalRequest.headers || {};
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
       return client.request(originalRequest);
     } catch (refreshError) {
       clearAuthStorage();
+      window.dispatchEvent(new Event('auth:logout'));
       return Promise.reject(refreshError);
     }
   }

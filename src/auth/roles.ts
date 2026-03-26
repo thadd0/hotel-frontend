@@ -12,8 +12,8 @@ function decodeJwtPayload(token?: string | null): Record<string, any> | null {
 }
 
 export function mapBackendRoleToAppRole(rawRole?: string | null): 'admin' | 'recepcion' {
-  if (typeof rawRole !== 'string') return 'admin';
-  return rawRole.includes('RECEPCIONISTA') ? 'recepcion' : 'admin';
+  if (typeof rawRole !== 'string') return 'recepcion';
+  return rawRole.includes('ADMINISTRADOR') ? 'admin' : 'recepcion';
 }
 
 export function deriveAppRole(accessToken?: string | null, fallbackRole?: string | null): 'admin' | 'recepcion' {
@@ -26,6 +26,6 @@ export function deriveAppRole(accessToken?: string | null, fallbackRole?: string
     fallbackRole,
   ].filter(Boolean);
 
-  const rawRole = String(candidates[0] ?? 'ROLE_ADMINISTRADOR');
+  const rawRole = String(candidates[0] ?? 'ROLE_RECEPCIONISTA');
   return mapBackendRoleToAppRole(rawRole);
 }

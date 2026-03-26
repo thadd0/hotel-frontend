@@ -1,6 +1,18 @@
+import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useHotel } from '../../context/HotelContext';
-import { Menu, UserCircle2 } from 'lucide-react';
+import { Menu, UserCircle2, Clock } from 'lucide-react';
+
+function useLiveClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const time = now.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' });
+  const date = now.toLocaleDateString('es-PE', { weekday:'short', day:'numeric', month:'short' });
+  return { time, date };
+}
 
 const TITLES = {
   '/':                 { title:'Vista General',         sub:'Recepción y estado de habitaciones' },
@@ -19,6 +31,7 @@ const TITLES = {
 export default function Header({ onMenuToggle, onUserToggle }) {
   const { pathname } = useLocation();
   const { userRole } = useHotel();
+  const { time, date } = useLiveClock();
   const info = TITLES[pathname] ?? { title:'Hotel Admin', sub:'' };
 
   return (
@@ -26,7 +39,7 @@ export default function Header({ onMenuToggle, onUserToggle }) {
       <div style={s.left}>
         <button className="menu-toggle" onClick={onMenuToggle} style={{
           border: 'none', background: 'none', cursor: 'pointer', padding: 6,
-          color: 'var(--text-muted)', display: 'none',
+          color: 'var(--text-muted)',
         }}>
           <Menu size={20} />
         </button>
@@ -37,6 +50,11 @@ export default function Header({ onMenuToggle, onUserToggle }) {
       </div>
 
       <div className="header-actions" style={s.right}>
+        <div style={s.clock}>
+          <Clock size={13} color="var(--accent)" strokeWidth={2.2} />
+          <span style={s.clockTime}>{time}</span>
+          <span style={s.clockDate}>{date}</span>
+        </div>
         <span style={s.roleBadge}>
           {userRole === 'admin' ? 'Administrador' : 'Recepcionista'}
         </span>
@@ -66,7 +84,14 @@ const s = {
   left: { display:'flex', alignItems:'center', gap:12 },
   title: { fontSize:16, fontWeight:700, color:'var(--text)', letterSpacing:'-0.3px', lineHeight:1.2 },
   sub:   { fontSize:11, color:'var(--text-xmuted)', marginTop:1 },
-  right: { display:'flex', alignItems:'center', gap:8 },
+  right: { display:'flex', alignItems:'center', gap:10 },
+  clock: {
+    display:'flex', alignItems:'center', gap:6,
+    padding:'5px 12px', borderRadius:'var(--r-md)',
+    background:'var(--accent-light)', border:'1px solid var(--accent-mid)',
+  },
+  clockTime: { fontSize:13, fontWeight:700, color:'var(--accent-dark)', fontVariantNumeric:'tabular-nums' },
+  clockDate: { fontSize:11, color:'var(--text-muted)', textTransform:'capitalize' },
   branchTrigger: {
     display:'inline-flex', alignItems:'center', gap:7,
     padding:'6px 11px', borderRadius:'var(--r-md)', cursor:'pointer',
