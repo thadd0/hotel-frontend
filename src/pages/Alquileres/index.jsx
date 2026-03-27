@@ -304,26 +304,45 @@ export default function Alquileres() {
       <PageHeader title="Alquileres" subtitle={`Rentas activas e historial · ${filtered.length}`} />
 
       {/* Dashboard stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 18 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' }}>
         {statCards.map(s => (
-          <Card key={s.label} padding="14px 18px" style={{
-            cursor: s.tab ? 'pointer' : 'default',
-            transition: 'transform .12s, box-shadow .12s',
-            outline: s.tab && tab === s.tab ? `2px solid ${s.dot}` : 'none',
-            outlineOffset: -2,
-          }}
+          <button
+            key={s.label}
             onClick={() => s.tab && handleTabChange(s.tab)}
-            onMouseEnter={e => { if (s.tab) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; } }}
-            onMouseLeave={e => { if (s.tab) { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; } }}
+            style={{
+              position: 'relative',
+              padding: '10px 18px',
+              background: s.tab && tab === s.tab ? `linear-gradient(135deg, ${s.dot}15, ${s.dot}08)` : 'var(--surface)',
+              border: `1.5px solid ${s.tab && tab === s.tab ? s.dot : 'var(--border)'}`,
+              borderRadius: 24,
+              cursor: s.tab ? 'pointer' : 'default',
+              transition: 'all .2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              outline: 'none',
+            }}
+            onMouseEnter={e => {
+              if (s.tab) {
+                e.currentTarget.style.borderColor = s.dot;
+                e.currentTarget.style.background = `linear-gradient(135deg, ${s.dot}25, ${s.dot}12)`;
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }
+            }}
+            onMouseLeave={e => {
+              if (s.tab) {
+                e.currentTarget.style.borderColor = tab === s.tab ? s.dot : 'var(--border)';
+                e.currentTarget.style.background = tab === s.tab ? `linear-gradient(135deg, ${s.dot}15, ${s.dot}08)` : 'var(--surface)';
+                e.currentTarget.style.transform = '';
+              }
+            }}
           >
-            <div style={{ fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1, marginBottom: 4 }}>
-              {s.value}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.6px', color: 'var(--text-xmuted)', textTransform: 'uppercase' }}>{s.label}</span>
-            </div>
-          </Card>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
+            <span style={{ fontWeight: 700, fontSize: 14, color: s.color }}>{s.value}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.3px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              {s.label}
+            </span>
+          </button>
         ))}
       </div>
 
@@ -331,7 +350,7 @@ export default function Alquileres() {
         {/* Toolbar row */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: 4 }}>
-            <TabBtn active={tab === 'ACTIVO'} onClick={() => handleTabChange('ACTIVO')} label="Activos" count={alquileres.filter(a => a.estadoAlquiler === 'ACTIVO').length} />
+            <TabBtn active={tab === 'ACTIVO'} onClick={() => handleTabChange('ACTIVO')} label="En progreso" count={alquileres.filter(a => a.estadoAlquiler === 'ACTIVO').length} />
             {isAdmin && (
               <TabBtn active={tab === 'FINALIZADO'} onClick={() => handleTabChange('FINALIZADO')} label="Historial" count={alquileres.filter(a => a.estadoAlquiler === 'FINALIZADO').length} />
             )}
@@ -602,12 +621,19 @@ export default function Alquileres() {
           return (
             <>
               {/* Header */}
-              <div style={{ marginBottom: 14 }}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>Hab. {cuentaModal.numeroHabitacion}</span>
-                <span style={{ fontSize: 14 }}> — {cuentaModal.nombreCliente}</span>
-                {cuentaModal.tipoAlquilerNombre && (
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{cuentaModal.tipoAlquilerNombre}</span>
-                )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>Hab. {cuentaModal.numeroHabitacion}</span>
+                  <span style={{ fontSize: 14 }}> — {cuentaModal.nombreCliente}</span>
+                  {cuentaModal.tipoAlquilerNombre && (
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>{cuentaModal.tipoAlquilerNombre}</span>
+                  )}
+                </div>
+                <Btn style={{ fontSize: 12, padding: '6px 16px', background: 'var(--accent)', color: '#fff', border: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}
+                  icon={<FileText size={13} />}
+                  onClick={() => generarBoleta(cuentaModal)}>
+                  Generar Boleta
+                </Btn>
               </div>
 
               {/* Bill table */}
@@ -757,14 +783,6 @@ export default function Alquileres() {
                 </div>
               )}
 
-              {/* Generar Boleta */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                <Btn variant="ghost" style={{ fontSize: 12, padding: '4px 10px' }}
-                  icon={<FileText size={13} />}
-                  onClick={() => generarBoleta(cuentaModal)}>
-                  Generar Boleta
-                </Btn>
-              </div>
 
               {/* Add consumo */}
               {cuentaModal.estadoAlquiler === 'ACTIVO' && (() => {
