@@ -5,7 +5,7 @@ import * as Switch       from '@radix-ui/react-switch';
 import * as Tooltip      from '@radix-ui/react-tooltip';
 import * as Separator    from '@radix-ui/react-separator';
 import * as Popover      from '@radix-ui/react-popover';
-import { X, ChevronDown, Check, AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
+import { X, ChevronDown, Check, AlertTriangle, CheckCircle, Info, XCircle, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 /* ─── PROVEEDOR DE INFORMACIÓN SOBRE HERRAMIENTAS (envolver App) ─────────────────── */
@@ -22,10 +22,10 @@ const BTN_VARIANTS = {
   icon:    { bg:'transparent',     color:'var(--text-muted)',   border:'var(--border)',        hoverBg:'var(--surface-2)'   },
 };
 const BTN_SIZES = {
-  xs: { padding:'4px 10px',  fontSize:'11px', height:'26px', borderRadius:'var(--r-sm)' },
-  sm: { padding:'5px 13px',  fontSize:'12.5px', height:'30px', borderRadius:'var(--r-sm)' },
-  md: { padding:'7px 16px',  fontSize:'13.5px', height:'36px', borderRadius:'var(--r-md)' },
-  lg: { padding:'9px 20px',  fontSize:'14px',  height:'42px', borderRadius:'var(--r-md)' },
+  xs: { padding:'4px 10px',  fontSize:'11px', height:'28px', borderRadius:'var(--r-sm)' },
+  sm: { padding:'6px 13px',  fontSize:'12.5px', height:'32px', borderRadius:'var(--r-sm)' },
+  md: { padding:'8px 16px',  fontSize:'13.5px', height:'38px', borderRadius:'var(--r-md)' },
+  lg: { padding:'10px 20px', fontSize:'14px',  height:'44px', borderRadius:'var(--r-md)' },
 };
 
 export function Btn({ children, variant='primary', size='md', icon, onClick, type='button', disabled, full }) {
@@ -244,16 +244,16 @@ export function Sep({ style: s }) {
 /* ─── CAMPO DE FORMULARIO ─────────────────────────────────────── */
 export function Field({ label, children, error, required, hint }) {
   return (
-    <div style={{ marginBottom:16 }}>
+    <div style={{ marginBottom:18 }}>
       {label && (
-        <label style={{ display:'block', fontSize:12.5, fontWeight:600, color:'var(--text-2)', marginBottom:6 }}>
+        <label style={{ display:'block', fontSize:13, fontWeight:600, color:'var(--text-2)', marginBottom:7 }}>
           {label}
           {required && <span style={{ color:'var(--red)', marginLeft:2 }}>*</span>}
           {hint && <span style={{ color:'var(--text-xmuted)', fontWeight:400, marginLeft:4 }}>{hint}</span>}
         </label>
       )}
       {children}
-      {error && <p style={{ color:'var(--red)', fontSize:11.5, marginTop:4, display:'flex', alignItems:'center', gap:4 }}>
+      {error && <p style={{ color:'var(--red)', fontSize:12, marginTop:6, display:'flex', alignItems:'center', gap:5 }}>
         <AlertTriangle size={11} /> {error}
       </p>}
     </div>
@@ -261,7 +261,7 @@ export function Field({ label, children, error, required, hint }) {
 }
 
 export const inputStyle = {
-  width:'100%', padding:'8px 12px', borderRadius:'var(--r-md)',
+  width:'100%', padding:'9px 12px', borderRadius:'var(--r-md)',
   border:'1px solid var(--border)', fontSize:'13.5px',
   color:'var(--text)', background:'var(--surface)', outline:'none',
   transition:'border-color .15s ease, box-shadow .15s ease',
@@ -327,15 +327,15 @@ export function EditBtn({ onClick }) {
   return (
     <Tip label="Editar">
       <button onClick={onClick} style={{
-        width:30, height:30, borderRadius:'var(--r-sm)',
+        width:34, height:34, borderRadius:'var(--r-sm)',
         border:'1px solid var(--border)', background:'var(--surface)',
         color:'var(--accent)', cursor:'pointer', display:'inline-flex',
-        alignItems:'center', justifyContent:'center', fontSize:14,
+        alignItems:'center', justifyContent:'center',
         transition:'all .15s',
       }}
       onMouseEnter={e=>{ e.currentTarget.style.background='var(--accent)'; e.currentTarget.style.color='#fff'; e.currentTarget.style.borderColor='var(--accent)'; }}
       onMouseLeave={e=>{ e.currentTarget.style.background='var(--surface)'; e.currentTarget.style.color='var(--accent)'; e.currentTarget.style.borderColor='var(--border)'; }}
-      >✎</button>
+      ><Pencil size={14} /></button>
     </Tip>
   );
 }
@@ -344,15 +344,15 @@ export function DeleteBtn({ onClick }) {
   return (
     <Tip label="Eliminar">
       <button onClick={onClick} style={{
-        width:30, height:30, borderRadius:'var(--r-sm)',
+        width:34, height:34, borderRadius:'var(--r-sm)',
         border:'1px solid var(--border)', background:'var(--surface)',
         color:'var(--red)', cursor:'pointer', display:'inline-flex',
-        alignItems:'center', justifyContent:'center', fontSize:14,
+        alignItems:'center', justifyContent:'center',
         transition:'all .15s',
       }}
       onMouseEnter={e=>{ e.currentTarget.style.background='var(--red)'; e.currentTarget.style.color='#fff'; e.currentTarget.style.borderColor='var(--red)'; }}
       onMouseLeave={e=>{ e.currentTarget.style.background='var(--surface)'; e.currentTarget.style.color='var(--red)'; e.currentTarget.style.borderColor='var(--border)'; }}
-      >🗑</button>
+      ><Trash2 size={14} /></button>
     </Tip>
   );
 }
@@ -362,17 +362,21 @@ export function Pagination({ page, total, perPage=10, onChange }) {
   const pages = Math.ceil(total / perPage);
   if (pages <= 1) return null;
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4, padding:'14px 0 4px' }}>
-      <button onClick={()=>onChange(page-1)} disabled={page===1} style={{ ...pgBtn, opacity:page===1?.4:1 }}>‹</button>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'14px 0 4px' }}>
+      <button onClick={()=>onChange(page-1)} disabled={page===1} style={{ ...pgBtn, opacity:page===1?.45:1 }}>
+        <ChevronLeft size={14} />
+      </button>
       {Array.from({length:pages},(_,i)=>i+1).map(p=>(
         <button key={p} onClick={()=>onChange(p)} style={{ ...pgBtn, ...(p===page?pgActive:{}) }}>{p}</button>
       ))}
-      <button onClick={()=>onChange(page+1)} disabled={page===pages} style={{ ...pgBtn, opacity:page===pages?.4:1 }}>›</button>
+      <button onClick={()=>onChange(page+1)} disabled={page===pages} style={{ ...pgBtn, opacity:page===pages?.45:1 }}>
+        <ChevronRight size={14} />
+      </button>
     </div>
   );
 }
 const pgBtn = {
-  width:28, height:28, borderRadius:'var(--r-sm)',
+  minWidth:32, height:32, padding:'0 8px', borderRadius:'var(--r-sm)',
   border:'1px solid var(--border)', background:'var(--surface)',
   fontSize:13, cursor:'pointer', display:'inline-flex',
   alignItems:'center', justifyContent:'center', color:'var(--text-muted)', fontWeight:600,
@@ -396,15 +400,30 @@ export function EmptyState({ message='No hay registros', icon }) {
 export function SearchInput({ value, onChange, placeholder='Buscar...' }) {
   return (
     <div style={{ position:'relative', display:'inline-flex', alignItems:'center' }}>
-      <span style={{ position:'absolute', left:10, color:'var(--text-xmuted)', fontSize:13, pointerEvents:'none' }}>⌕</span>
+      <span style={{ position:'absolute', left:10, color:'var(--text-xmuted)', fontSize:13, pointerEvents:'none', display:'inline-flex' }}>
+        <Search size={13} />
+      </span>
       <input
         value={value}
         onChange={e=>onChange(e.target.value)}
         placeholder={placeholder}
         onFocus={inputFocus}
         onBlur={inputBlur}
-        style={{ ...inputStyle, paddingLeft:30, width:200 }}
+        style={{ ...inputStyle, paddingLeft:30, paddingRight:30, width:220 }}
       />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          style={{
+            position:'absolute', right:8, border:'none', background:'transparent', color:'var(--text-xmuted)',
+            cursor:'pointer', display:'inline-flex', padding:2,
+          }}
+          aria-label="Limpiar búsqueda"
+        >
+          <X size={13} />
+        </button>
+      )}
     </div>
   );
 }

@@ -73,8 +73,8 @@ export default function Sidebar({ open, onClose }) {
                 <Icon size={14} strokeWidth={active ? 2.2 : 1.8} />
               </span>
               <span style={{ flex:1, minWidth:0 }}>
-                <span style={{ display:'block', fontSize:12.5, fontWeight: active ? 700 : 500, color: active ? 'var(--accent-dark)' : 'var(--text-2)', lineHeight:1.2 }}>{label}</span>
-                <span style={{ display:'block', fontSize:10, color:'var(--text-xmuted)', marginTop:1 }}>{sub}</span>
+                <span style={{ display:'block', fontSize:13, fontWeight: active ? 700 : 500, color: active ? 'var(--accent-dark)' : 'var(--text-2)', lineHeight:1.2 }}>{label}</span>
+                <span style={{ display:'block', fontSize:11, color:'var(--text-xmuted)', marginTop:2 }}>{sub}</span>
               </span>
               {active && (
                 <span style={{
@@ -109,8 +109,8 @@ export default function Sidebar({ open, onClose }) {
               <Users size={14} strokeWidth={isActive('/perfil') ? 2.2 : 1.8} />
             </span>
             <span style={{ flex:1, minWidth:0 }}>
-              <span style={{ display:'block', fontSize:12.5, fontWeight: isActive('/perfil') ? 700 : 500, color: isActive('/perfil') ? 'var(--accent-dark)' : 'var(--text-2)', lineHeight:1.2 }}>Perfil</span>
-              <span style={{ display:'block', fontSize:10, color:'var(--text-xmuted)', marginTop:1 }}>Mi cuenta</span>
+              <span style={{ display:'block', fontSize:13, fontWeight: isActive('/perfil') ? 700 : 500, color: isActive('/perfil') ? 'var(--accent-dark)' : 'var(--text-2)', lineHeight:1.2 }}>Perfil</span>
+              <span style={{ display:'block', fontSize:11, color:'var(--text-xmuted)', marginTop:2 }}>Mi cuenta</span>
             </span>
           </Link>
           {userRole === 'admin' && (
@@ -130,8 +130,8 @@ export default function Sidebar({ open, onClose }) {
                 <Users size={14} strokeWidth={isActive('/usuarios') ? 2.2 : 1.8} />
               </span>
               <span style={{ flex:1, minWidth:0 }}>
-                <span style={{ display:'block', fontSize:12.5, fontWeight: isActive('/usuarios') ? 700 : 500, color: isActive('/usuarios') ? 'var(--accent-dark)' : 'var(--text-2)', lineHeight:1.2 }}>Usuarios</span>
-                <span style={{ display:'block', fontSize:10, color:'var(--text-xmuted)', marginTop:1 }}>Gestión de usuarios</span>
+                <span style={{ display:'block', fontSize:13, fontWeight: isActive('/usuarios') ? 700 : 500, color: isActive('/usuarios') ? 'var(--accent-dark)' : 'var(--text-2)', lineHeight:1.2 }}>Usuarios</span>
+                <span style={{ display:'block', fontSize:11, color:'var(--text-xmuted)', marginTop:2 }}>Gestión de usuarios</span>
               </span>
             </Link>
           )}
@@ -144,7 +144,7 @@ export default function Sidebar({ open, onClose }) {
 const s = {
   logo: {
     display:'flex', alignItems:'center', gap:11,
-    padding:'16px 16px 12px',
+    padding:'16px 16px 14px',
   },
   logoImg: {
     width:36, height:36, borderRadius:'var(--r-md)',
@@ -166,24 +166,24 @@ const s = {
     height:1, background:'var(--border)', margin:'0 14px 8px',
   },
   nav: {
-    flex:1, overflowY:'auto', padding:'0 8px 8px',
+    flex:1, overflowY:'auto', padding:'0 8px 10px',
   },
   groupLabel: {
-    fontSize:9, fontWeight:800, letterSpacing:'1.4px',
-    color:'var(--text-xmuted)', padding:'4px 10px 6px',
+    fontSize:10, fontWeight:800, letterSpacing:'1.3px',
+    color:'var(--text-xmuted)', padding:'6px 10px 8px',
     textTransform:'uppercase', margin:0,
   },
   item: {
     display:'flex', alignItems:'center', gap:8,
-    padding:'6px 8px', borderRadius:'var(--r-md)',
-    textDecoration:'none', marginBottom:1,
+    padding:'8px 9px', borderRadius:'var(--r-md)',
+    textDecoration:'none', marginBottom:2,
     transition:'background .12s ease',
   },
   itemActive: {
     background:'var(--side-active-bg)',
   },
   iconBox: {
-    width:26, height:26, borderRadius:'var(--r-sm)',
+    width:28, height:28, borderRadius:'var(--r-sm)',
     display:'flex', alignItems:'center', justifyContent:'center',
     flexShrink:0, transition:'all .15s ease',
   },

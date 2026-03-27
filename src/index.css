@@ -59,6 +59,22 @@
   --shadow-lg: 0 12px 32px rgba(0,0,0,.10), 0 4px 8px rgba(0,0,0,.05);
 
   --sidebar-w: 230px;
+
+  /* Escala de espaciado y tipografía (pulido final) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 24px;
 }
 
 html, body, #root { height: 100%; }
@@ -67,7 +83,7 @@ body {
   font-family: 'Outfit', sans-serif;
   background: var(--bg);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
@@ -107,9 +123,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 /* Tabla: cebra */
-tbody tr:nth-child(even) { background: var(--surface-2); }
+tbody tr:nth-child(even) { background: #f8f8f7; }
 tbody tr { transition: background .12s; }
-tbody tr:hover { background: var(--accent-light) !important; }
+tbody tr:hover { background: #fdf5e8 !important; }
 
 /* Entrada de página */
 @keyframes pageIn {
