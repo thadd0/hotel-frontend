@@ -350,9 +350,9 @@ export default function Alquileres() {
         {/* Toolbar row */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: 4 }}>
-            <TabBtn active={tab === 'ACTIVO'} onClick={() => handleTabChange('ACTIVO')} label="En progreso" count={alquileres.filter(a => a.estadoAlquiler === 'ACTIVO').length} />
+            <TabBtn active={tab === 'ACTIVO'} onClick={() => handleTabChange('ACTIVO')} label="Activos" count={alquileres.filter(a => a.estadoAlquiler === 'ACTIVO').length} />
             {isAdmin && (
-              <TabBtn active={tab === 'FINALIZADO'} onClick={() => handleTabChange('FINALIZADO')} label="Historial" count={alquileres.filter(a => a.estadoAlquiler === 'FINALIZADO').length} />
+              <TabBtn active={tab === 'FINALIZADO'} onClick={() => handleTabChange('FINALIZADO')} label="Finalizados" count={alquileres.filter(a => a.estadoAlquiler === 'FINALIZADO').length} />
             )}
           </div>
           <button

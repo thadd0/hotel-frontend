@@ -1,0 +1,18 @@
+# dependencias
+node_modules/
+
+# build
+dist/
+
+# variables de entorno (NUNCA subir al repo)
+.env
+.env.local
+.env.production
+
+# archivos del editor
+.vscode/
+.idea/
+
+# sistema
+.DS_Store
+Thumbs.db
