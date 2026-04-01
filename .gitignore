@@ -7,7 +7,8 @@ dist/
 # variables de entorno (NUNCA subir al repo)
 .env
 .env.local
-.env.production
+# .env.production NO va en gitignore — solo tiene VITE_API_URL= (vacío, sin secretos)
+# y es necesario que exista en el repo para que Docker lo use al compilar
 
 # archivos del editor
 .vscode/
