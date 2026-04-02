@@ -3,7 +3,7 @@ import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, Field, Modal, EmptyState, Pagination, Card, RSelect, SearchInput, inputStyle, tdStyle, PageHeader, useToast } from '../../components/UI/index.jsx';
 import { DollarSign, TrendingUp, TrendingDown, Plus, FileText, Download, Pencil, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy, cobrarMovimientoEmpresa } from '../../api/caja';
-import { descargarReporteCajaMovimientos, generarCierreCaja } from '../../utils/reportesPdf';
+import { descargarReporteCajaMovimientos, generarCierreCaja, generarReporteEmpresa } from '../../utils/reportesPdf';
 import { sanitizeDecimal, METODOS_PAGO } from '../../utils/formHelpers';
 
 const PER_PAGE = 15;
@@ -118,22 +118,24 @@ export default function Caja() {
   const [buscarNombre, setBuscarNombre]   = useState('');
   const [sortDir, setSortDir]             = useState('desc');
 
-  const filtroActivos = [filtroDesde, filtroHasta, filtroTipo, filtroMetodo, filtroCliente, filtroEmpresaNombre, buscarNombre.trim()].filter(Boolean).length;
-  const limpiarFiltros = () => { setFiltroDesde(''); setFiltroHasta(''); setFiltroTipo(''); setFiltroMetodo(''); setFiltroCliente(''); setFiltroEmpresaNombre(''); setBuscarNombre(''); setPage(1); };
+  // Tab state
+  const [activeTab, setActiveTab] = useState('movimientos');
+
+  const filtroActivosMov = [filtroDesde, filtroHasta, filtroTipo, filtroMetodo, filtroCliente, filtroEmpresaNombre, buscarNombre.trim()].filter(Boolean).length;
+  const filtroActivosEmp = [filtroDesde, filtroHasta, filtroEmpresaNombre, buscarNombre.trim()].filter(Boolean).length;
+  const filtroActivos = activeTab === 'cuentas_empresa' ? filtroActivosEmp : filtroActivosMov;
+  const limpiarFiltros = () => { setFiltroDesde(''); setFiltroHasta(''); setFiltroTipo(''); setFiltroMetodo(''); setFiltroCliente(''); setFiltroEmpresaNombre(''); setBuscarNombre(''); setPage(1); setPageEmpresa(1); };
 
   // Edit monto state (admin only)
   const [editMontoModal, setEditMontoModal] = useState(null); // movimiento or null
   const [editMontoValue, setEditMontoValue] = useState('');
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState('movimientos');
 
   // Cobrar empresa state (admin only)
   const [cobrarModal, setCobrarModal] = useState(null);
   const [cobrarMetodo, setCobrarMetodo] = useState('EFECTIVO');
   const [cobrarSubmitting, setCobrarSubmitting] = useState(false);
   const [pageEmpresa, setPageEmpresa] = useState(1);
-  const [filtroEmpresaCuenta, setFiltroEmpresaCuenta] = useState('');
 
   const fetchResumen = useCallback(async () => {
     setLoading(true);
@@ -192,14 +194,27 @@ export default function Caja() {
   }, [movimientosFiltrados, sortDir]);
 
   const cuentasEmpresaAll = useMemo(() => {
-    return [...resumen.movimientos.filter(m => m.tipo === 'PENDIENTE')]
-      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    return resumen.movimientos.filter(m => m.tipo === 'PENDIENTE');
   }, [resumen.movimientos]);
 
   const cuentasEmpresaPendientes = useMemo(() => {
-    if (!filtroEmpresaCuenta) return cuentasEmpresaAll;
-    return cuentasEmpresaAll.filter(m => m.nombreEmpresa === filtroEmpresaCuenta);
-  }, [cuentasEmpresaAll, filtroEmpresaCuenta]);
+    let filtered = cuentasEmpresaAll;
+    if (filtroEmpresaNombre) filtered = filtered.filter(m => m.nombreEmpresa === filtroEmpresaNombre);
+    if (buscarNombre.trim()) {
+      const q = buscarNombre.toLowerCase().trim();
+      filtered = filtered.filter(m =>
+        m.concepto?.toLowerCase().includes(q) ||
+        m.nombreCliente?.toLowerCase().includes(q) ||
+        m.nombreEmpresa?.toLowerCase().includes(q) ||
+        String(m.numeroHabitacion).includes(q)
+      );
+    }
+    return [...filtered].sort((a, b) => {
+      const ta = new Date(a.fecha).getTime();
+      const tb = new Date(b.fecha).getTime();
+      return sortDir === 'desc' ? tb - ta : ta - tb;
+    });
+  }, [cuentasEmpresaAll, filtroEmpresaNombre, buscarNombre, sortDir]);
 
   const empresasConPendientes = useMemo(() => {
     const nombres = [...new Set(cuentasEmpresaAll.map(m => m.nombreEmpresa).filter(Boolean))];
@@ -306,13 +321,21 @@ export default function Caja() {
           <Btn icon={<TrendingDown size={14} />} variant="ghost" onClick={() => openModal('EGRESO')}>Registrar Egreso</Btn>
       </PageHeader>
 
-      {/* Summary Cards — aligned to ResumenCajaDTO */}
+      {/* Summary Cards — per tab */}
+      {activeTab === 'movimientos' && (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 18 }}>
         <SummaryCard label="Total Ingresos" value={resumenFiltrado.totalIngresos} color="var(--green, #43a047)" bg="var(--green-bg, #e8f5e9)" icon={<TrendingUp size={16} />} />
         <SummaryCard label="Total Egresos" value={resumenFiltrado.totalEgresos} color="var(--red, #e53935)" bg="var(--red-bg, #fbe9e7)" icon={<TrendingDown size={16} />} />
         <SummaryCard label="Balance" value={resumenFiltrado.balance} color={resumenFiltrado.balance >= 0 ? 'var(--accent)' : 'var(--red, #e53935)'} bg="var(--accent-light, #e3f2fd)" icon={<DollarSign size={16} />} />
         <SummaryCard label="Movimientos" value={resumenFiltrado.cantidadMovimientos} isCount color="var(--text-2)" bg="var(--surface-2, #f5f5f5)" icon={<FileText size={16} />} />
       </div>
+      )}
+      {activeTab === 'cuentas_empresa' && (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
+        <SummaryCard label="Total Pendiente" value={totalPendienteEmpresas} color="#e65100" bg="#fff3e0" icon={<Clock size={16} />} />
+        <SummaryCard label="Empresas con deuda" value={empresasConDeuda} isCount color="var(--text-2)" bg="var(--surface-2, #f5f5f5)" icon={<FileText size={16} />} />
+      </div>
+      )}
 
       {/* Tab selector */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid var(--border)' }}>
@@ -325,16 +348,15 @@ export default function Caja() {
             marginBottom: -2, transition: 'color .12s, border-color .12s',
           }}>
             {label}
-            {key === 'cuentas_empresa' && cuentasEmpresaPendientes.length > 0 && (
+            {key === 'cuentas_empresa' && cuentasEmpresaAll.length > 0 && (
               <span style={{ background: '#e65100', color: '#fff', borderRadius: 999, padding: '1px 7px', fontSize: 11, fontWeight: 700, marginLeft: 6 }}>
-                {cuentasEmpresaPendientes.length}
+                {cuentasEmpresaAll.length}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {activeTab === 'movimientos' && <>
       <Card padding="12px 16px" style={{ marginBottom: 18 }}>
         {/* Toolbar row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -359,10 +381,10 @@ export default function Caja() {
           {/* Active filter pills summary (when panel is closed) */}
           {!filtrosOpen && filtroActivos > 0 && (
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 }}>
-              {filtroTipo && <span style={{ background: 'var(--accent-light,#e3f2fd)', color: 'var(--accent)', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>{filtroTipo === 'INGRESO' ? 'Ingreso' : 'Egreso'}</span>}
-              {filtroMetodo && <span style={{ background: 'var(--green-bg,#e8f5e9)', color: 'var(--green,#43a047)', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>{filtroMetodo.charAt(0) + filtroMetodo.slice(1).toLowerCase()}</span>}
-              {filtroCliente === 'SOLO_CLIENTES' && <span style={{ background: '#e3f2fd', color: '#1565c0', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>Solo clientes</span>}
-              {filtroCliente === 'SOLO_EMPRESAS' && <span style={{ background: '#f3e5f5', color: '#7b1fa2', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>Solo empresas</span>}
+              {activeTab === 'movimientos' && filtroTipo && <span style={{ background: 'var(--accent-light,#e3f2fd)', color: 'var(--accent)', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>{filtroTipo === 'INGRESO' ? 'Ingreso' : 'Egreso'}</span>}
+              {activeTab === 'movimientos' && filtroMetodo && <span style={{ background: 'var(--green-bg,#e8f5e9)', color: 'var(--green,#43a047)', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>{filtroMetodo.charAt(0) + filtroMetodo.slice(1).toLowerCase()}</span>}
+              {activeTab === 'movimientos' && filtroCliente === 'SOLO_CLIENTES' && <span style={{ background: '#e3f2fd', color: '#1565c0', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>Solo clientes</span>}
+              {activeTab === 'movimientos' && filtroCliente === 'SOLO_EMPRESAS' && <span style={{ background: '#f3e5f5', color: '#7b1fa2', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>Solo empresas</span>}
               {filtroEmpresaNombre && <span style={{ background: '#f3e5f5', color: '#7b1fa2', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>{filtroEmpresaNombre}</span>}
               {filtroDesde && <span style={{ background: '#fff3e0', color: '#e65100', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>Desde {filtroDesde}</span>}
               {filtroHasta && <span style={{ background: '#fff3e0', color: '#e65100', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600 }}>Hasta {filtroHasta}</span>}
@@ -377,21 +399,28 @@ export default function Caja() {
               {sortDir === 'desc' ? 'Más reciente' : 'Más antiguo'}
             </Btn>
             <Btn variant="ghost" icon={<Download size={14} />}
-              onClick={() => descargarReporteCajaMovimientos(movimientosFiltrados, {
-                desde: filtroDesde, hasta: filtroHasta, isAdmin,
-                filtroTipo,
-                filtroEmpresa: filtroEmpresaNombre || (filtroCliente === 'SOLO_EMPRESAS' ? 'empresas' : ''),
-                search: buscarNombre,
-                resumen: {
-                  totalIngresos: resumenFiltrado.totalIngresos,
-                  totalEgresos: resumenFiltrado.totalEgresos,
-                  balance: resumenFiltrado.balance,
-                  cantidadMovimientos: resumenFiltrado.cantidadMovimientos,
-                },
-              })}>
+              onClick={() => {
+                if (activeTab === 'cuentas_empresa') {
+                  generarReporteEmpresa(cuentasEmpresaPendientes, filtroEmpresaNombre || 'Todas las empresas',
+                    filtroDesde && filtroHasta ? `${filtroDesde} — ${filtroHasta}` : '');
+                } else {
+                  descargarReporteCajaMovimientos(movimientosFiltrados, {
+                    desde: filtroDesde, hasta: filtroHasta, isAdmin,
+                    filtroTipo,
+                    filtroEmpresa: filtroEmpresaNombre || (filtroCliente === 'SOLO_EMPRESAS' ? 'empresas' : ''),
+                    search: buscarNombre,
+                    resumen: {
+                      totalIngresos: resumenFiltrado.totalIngresos,
+                      totalEgresos: resumenFiltrado.totalEgresos,
+                      balance: resumenFiltrado.balance,
+                      cantidadMovimientos: resumenFiltrado.cantidadMovimientos,
+                    },
+                  });
+                }
+              }}>
               Descargar PDF
             </Btn>
-            <Btn variant="ghost" icon={<FileText size={14} />}
+            {activeTab === 'movimientos' && <Btn variant="ghost" icon={<FileText size={14} />}
               onClick={async () => {
                 const hoy = new Date().toISOString().slice(0, 10);
                 let movHoy = [];
@@ -415,7 +444,7 @@ export default function Caja() {
                 }, `Fecha: ${hoy}`);
               }}>
               Cierre de Caja
-            </Btn>
+            </Btn>}
           </div>
         </div>
 
@@ -451,7 +480,8 @@ export default function Caja() {
               </div>
             </div>
 
-            {/* Tipo de movimiento */}
+            {/* Tipo de movimiento — solo movimientos */}
+            {activeTab === 'movimientos' && (
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--text-xmuted)', display: 'block', marginBottom: 8 }}>Tipo de movimiento</label>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -460,8 +490,10 @@ export default function Caja() {
                 ))}
               </div>
             </div>
+            )}
 
-            {/* Método de pago */}
+            {/* Método de pago — solo movimientos */}
+            {activeTab === 'movimientos' && (
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--text-xmuted)', display: 'block', marginBottom: 8 }}>Método de pago</label>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -470,8 +502,10 @@ export default function Caja() {
                 ))}
               </div>
             </div>
+            )}
 
-            {/* Tipo de cliente */}
+            {/* Tipo de cliente — solo movimientos */}
+            {activeTab === 'movimientos' && (
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--text-xmuted)', display: 'block', marginBottom: 8 }}>Tipo de cliente</label>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -490,6 +524,19 @@ export default function Caja() {
                 </div>
               )}
             </div>
+            )}
+
+            {/* Empresa — solo cuentas empresa */}
+            {activeTab === 'cuentas_empresa' && empresasConPendientes.length > 0 && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--text-xmuted)', display: 'block', marginBottom: 8 }}>Empresa</label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[['', 'Todas'], ...empresasConPendientes.map(n => [n, n])].map(([v, l]) => (
+                  <button key={v} onClick={() => { setFiltroEmpresaNombre(v); setPageEmpresa(1); }} style={chipStyle(filtroEmpresaNombre === v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+            )}
 
             {/* Búsqueda por texto */}
             <div style={{ maxWidth: 360 }}>
@@ -501,6 +548,7 @@ export default function Caja() {
         )}
       </Card>
 
+      {activeTab === 'movimientos' && <>
       {/* Movements table */}
       <Card>
       {loading ? (
@@ -575,18 +623,6 @@ export default function Caja() {
 
       {activeTab === 'cuentas_empresa' && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
-            <SummaryCard label="Total Pendiente" value={totalPendienteEmpresas} color="#e65100" bg="#fff3e0" icon={<Clock size={16} />} />
-            <SummaryCard label="Empresas con deuda" value={empresasConDeuda} isCount color="var(--text-2)" bg="var(--surface-2, #f5f5f5)" icon={<FileText size={16} />} />
-          </div>
-          {empresasConPendientes.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', marginRight: 4 }}>Filtrar:</span>
-              {[['', 'Todas'], ...empresasConPendientes.map(n => [n, n])].map(([v, l]) => (
-                <button key={v} onClick={() => { setFiltroEmpresaCuenta(v); setPageEmpresa(1); }} style={chipStyle(filtroEmpresaCuenta === v)}>{l}</button>
-              ))}
-            </div>
-          )}
           <Card>
             {loading ? (
               <EmptyState message="Cargando..." icon={<DollarSign size={48} />} />
