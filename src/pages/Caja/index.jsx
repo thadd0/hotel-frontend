@@ -133,6 +133,7 @@ export default function Caja() {
   const [cobrarMetodo, setCobrarMetodo] = useState('EFECTIVO');
   const [cobrarSubmitting, setCobrarSubmitting] = useState(false);
   const [pageEmpresa, setPageEmpresa] = useState(1);
+  const [filtroEmpresaCuenta, setFiltroEmpresaCuenta] = useState('');
 
   const fetchResumen = useCallback(async () => {
     setLoading(true);
@@ -190,10 +191,20 @@ export default function Caja() {
     });
   }, [movimientosFiltrados, sortDir]);
 
-  const cuentasEmpresaPendientes = useMemo(() => {
+  const cuentasEmpresaAll = useMemo(() => {
     return [...resumen.movimientos.filter(m => m.tipo === 'PENDIENTE')]
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   }, [resumen.movimientos]);
+
+  const cuentasEmpresaPendientes = useMemo(() => {
+    if (!filtroEmpresaCuenta) return cuentasEmpresaAll;
+    return cuentasEmpresaAll.filter(m => m.nombreEmpresa === filtroEmpresaCuenta);
+  }, [cuentasEmpresaAll, filtroEmpresaCuenta]);
+
+  const empresasConPendientes = useMemo(() => {
+    const nombres = [...new Set(cuentasEmpresaAll.map(m => m.nombreEmpresa).filter(Boolean))];
+    return nombres.sort();
+  }, [cuentasEmpresaAll]);
 
   const totalPendienteEmpresas = useMemo(() =>
     cuentasEmpresaPendientes.reduce((s, m) => s + (parseFloat(m.monto) || 0), 0),
@@ -201,8 +212,8 @@ export default function Caja() {
   );
 
   const empresasConDeuda = useMemo(() =>
-    new Set(cuentasEmpresaPendientes.map(m => m.nombreEmpresa).filter(Boolean)).size,
-    [cuentasEmpresaPendientes]
+    new Set(cuentasEmpresaAll.map(m => m.nombreEmpresa).filter(Boolean)).size,
+    [cuentasEmpresaAll]
   );
 
   /* Resumen: tarjetas muestran solo los montos que el rol puede ver.
@@ -565,9 +576,17 @@ export default function Caja() {
       {activeTab === 'cuentas_empresa' && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
-            <SummaryCard label="Total Pendiente Empresas" value={totalPendienteEmpresas} color="#e65100" bg="#fff3e0" icon={<Clock size={16} />} />
+            <SummaryCard label="Total Pendiente" value={totalPendienteEmpresas} color="#e65100" bg="#fff3e0" icon={<Clock size={16} />} />
             <SummaryCard label="Empresas con deuda" value={empresasConDeuda} isCount color="var(--text-2)" bg="var(--surface-2, #f5f5f5)" icon={<FileText size={16} />} />
           </div>
+          {empresasConPendientes.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', marginRight: 4 }}>Filtrar:</span>
+              {[['', 'Todas'], ...empresasConPendientes.map(n => [n, n])].map(([v, l]) => (
+                <button key={v} onClick={() => { setFiltroEmpresaCuenta(v); setPageEmpresa(1); }} style={chipStyle(filtroEmpresaCuenta === v)}>{l}</button>
+              ))}
+            </div>
+          )}
           <Card>
             {loading ? (
               <EmptyState message="Cargando..." icon={<DollarSign size={48} />} />
