@@ -82,9 +82,9 @@ export default function CheckInModal({
       idHabitacion: selectedRoomId,
       idTipoAlquiler: Number(tipoAlquilerId),
       cantTiempo,
-      metodoPago,
+      metodoPago: clienteEsEmpresa ? undefined : metodoPago,
     };
-    if (adelanto && Number(adelanto) > 0) {
+    if (!clienteEsEmpresa && adelanto && Number(adelanto) > 0) {
       checkInData.adelanto = Number(adelanto);
     }
 
@@ -367,7 +367,7 @@ export default function CheckInModal({
               )}
             </div>
 
-            {canViewTarifa && (
+            {!clienteEsEmpresa && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Método de pago">
                   <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} style={inputStyle}>
