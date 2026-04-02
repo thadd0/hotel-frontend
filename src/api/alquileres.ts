@@ -20,10 +20,10 @@ export async function postCheckIn(data: CheckInRequestDTO): Promise<AlquilerResp
   });
 }
 
-export async function postCheckOut(id: number, metodoPago: string): Promise<AlquilerResponseDTO> {
+export async function postCheckOut(id: number, metodoPago?: string): Promise<AlquilerResponseDTO> {
   return apiFetch(`/api/recepcion/alquiler/${id}/check-out`, {
     method: 'POST',
-    params: { metodoPago },
+    params: metodoPago ? { metodoPago } : {},
   });
 }
 

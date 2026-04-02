@@ -37,3 +37,10 @@ export async function patchMovimientoMonto(id: number, monto: number): Promise<M
     params: { monto },
   });
 }
+
+export async function cobrarMovimientoEmpresa(id: number, metodoPago: string): Promise<MovimientoCajaResponseDTO> {
+  return apiFetch(`/api/recepcion/caja/${id}/cobrar`, {
+    method: 'PATCH',
+    params: { metodoPago },
+  });
+}

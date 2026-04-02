@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, Field, Modal, EmptyState, Pagination, Card, RSelect, SearchInput, inputStyle, tdStyle, PageHeader, useToast } from '../../components/UI/index.jsx';
-import { DollarSign, TrendingUp, TrendingDown, Plus, FileText, Download, Pencil, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp } from 'lucide-react';
-import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy } from '../../api/caja';
+import { DollarSign, TrendingUp, TrendingDown, Plus, FileText, Download, Pencil, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy, cobrarMovimientoEmpresa } from '../../api/caja';
 import { descargarReporteCajaMovimientos, generarCierreCaja } from '../../utils/reportesPdf';
 import { sanitizeDecimal, METODOS_PAGO } from '../../utils/formHelpers';
 
@@ -125,6 +125,15 @@ export default function Caja() {
   const [editMontoModal, setEditMontoModal] = useState(null); // movimiento or null
   const [editMontoValue, setEditMontoValue] = useState('');
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState('movimientos');
+
+  // Cobrar empresa state (admin only)
+  const [cobrarModal, setCobrarModal] = useState(null);
+  const [cobrarMetodo, setCobrarMetodo] = useState('EFECTIVO');
+  const [cobrarSubmitting, setCobrarSubmitting] = useState(false);
+  const [pageEmpresa, setPageEmpresa] = useState(1);
+
   const fetchResumen = useCallback(async () => {
     setLoading(true);
     try {
@@ -132,7 +141,7 @@ export default function Caja() {
       const hasta = filtroHasta || new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
       const movs = await getMovimientosRango(desde, hasta);
       const movimientos = Array.isArray(movs) ? movs : [];
-      const totalIngresos = movimientos.filter(m => m.tipo !== 'EGRESO').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
+      const totalIngresos = movimientos.filter(m => m.tipo === 'INGRESO').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
       const totalEgresos = movimientos.filter(m => m.tipo === 'EGRESO').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
       setResumen({
         totalIngresos,
@@ -155,7 +164,7 @@ export default function Caja() {
 
   const movimientosFiltrados = useMemo(() => {
     let filtered = resumen.movimientos;
-    if (filtroTipo) filtered = filtered.filter(m => filtroTipo === 'INGRESO' ? m.tipo !== 'EGRESO' : m.tipo === 'EGRESO');
+    if (filtroTipo) filtered = filtered.filter(m => filtroTipo === 'INGRESO' ? m.tipo === 'INGRESO' : m.tipo === 'EGRESO');
     if (filtroMetodo) filtered = filtered.filter(m => m.metodoPago?.toUpperCase() === filtroMetodo);
     if (filtroCliente === 'SOLO_CLIENTES') filtered = filtered.filter(m => !m.nombreEmpresa || m.nombreEmpresa === '—');
     if (filtroCliente === 'SOLO_EMPRESAS') filtered = filtered.filter(m => m.nombreEmpresa && m.nombreEmpresa !== '—');
@@ -181,6 +190,21 @@ export default function Caja() {
     });
   }, [movimientosFiltrados, sortDir]);
 
+  const cuentasEmpresaPendientes = useMemo(() => {
+    return [...resumen.movimientos.filter(m => m.tipo === 'PENDIENTE')]
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  }, [resumen.movimientos]);
+
+  const totalPendienteEmpresas = useMemo(() =>
+    cuentasEmpresaPendientes.reduce((s, m) => s + (parseFloat(m.monto) || 0), 0),
+    [cuentasEmpresaPendientes]
+  );
+
+  const empresasConDeuda = useMemo(() =>
+    new Set(cuentasEmpresaPendientes.map(m => m.nombreEmpresa).filter(Boolean)).size,
+    [cuentasEmpresaPendientes]
+  );
+
   /* Resumen: tarjetas muestran solo los montos que el rol puede ver.
      Recepcionista ve todas las filas pero monto/método de empresa = "—",
      así que los totales deben excluir esos montos ocultos. */
@@ -189,7 +213,7 @@ export default function Caja() {
       ? movimientosFiltrados
       : movimientosFiltrados.filter(m => !(m.nombreEmpresa && m.nombreEmpresa !== '—'));
     const totalIngresos = monetarios
-      .filter(m => m.tipo !== 'EGRESO')
+      .filter(m => m.tipo === 'INGRESO')
       .reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
     const totalEgresos = monetarios
       .filter(m => m.tipo === 'EGRESO')
@@ -203,6 +227,22 @@ export default function Caja() {
   }, [movimientosFiltrados, isAdmin]);
 
   const paged = movimientosSorted.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  const handleCobrar = async () => {
+    if (!cobrarModal) return;
+    setCobrarSubmitting(true);
+    try {
+      await cobrarMovimientoEmpresa(cobrarModal.id, cobrarMetodo);
+      addToast('Pago de empresa registrado.', 'success');
+      setCobrarModal(null);
+      await fetchResumen();
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al registrar el pago.', 'error');
+    } finally {
+      setCobrarSubmitting(false);
+    }
+  };
 
   const openModal = (tipo) => {
     setModalTipo(tipo);
@@ -263,6 +303,27 @@ export default function Caja() {
         <SummaryCard label="Movimientos" value={resumenFiltrado.cantidadMovimientos} isCount color="var(--text-2)" bg="var(--surface-2, #f5f5f5)" icon={<FileText size={16} />} />
       </div>
 
+      {/* Tab selector */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid var(--border)' }}>
+        {[['movimientos', 'Movimientos'], ['cuentas_empresa', 'Cuentas Empresa']].map(([key, label]) => (
+          <button key={key} onClick={() => setActiveTab(key)} style={{
+            padding: '8px 20px', border: 'none', background: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 600,
+            color: activeTab === key ? 'var(--accent)' : 'var(--text-2)',
+            borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent',
+            marginBottom: -2, transition: 'color .12s, border-color .12s',
+          }}>
+            {label}
+            {key === 'cuentas_empresa' && cuentasEmpresaPendientes.length > 0 && (
+              <span style={{ background: '#e65100', color: '#fff', borderRadius: 999, padding: '1px 7px', fontSize: 11, fontWeight: 700, marginLeft: 6 }}>
+                {cuentasEmpresaPendientes.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'movimientos' && <>
       <Card padding="12px 16px" style={{ marginBottom: 18 }}>
         {/* Toolbar row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -334,7 +395,7 @@ export default function Caja() {
                 const movsParaCierre = isAdmin
                   ? movHoy
                   : movHoy.filter(m => !(m.nombreEmpresa && m.nombreEmpresa !== '—'));
-                const totalIngresos = movsParaCierre.filter(m => m.tipo !== 'EGRESO').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
+                const totalIngresos = movsParaCierre.filter(m => m.tipo === 'INGRESO').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
                 const totalEgresos = movsParaCierre.filter(m => m.tipo === 'EGRESO').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
                 generarCierreCaja(movsParaCierre, {
                   totalIngresos, totalEgresos,
@@ -454,11 +515,11 @@ export default function Caja() {
                   <span style={{
                     padding: '2px 8px', borderRadius: 'var(--r-sm, 4px)', fontSize: 11, fontWeight: 600,
                     display: 'inline-flex', alignItems: 'center', gap: 4,
-                    color: m.tipo === 'EGRESO' ? 'var(--red, #e53935)' : 'var(--green, #43a047)',
-                    background: m.tipo === 'EGRESO' ? 'var(--red-bg, #fbe9e7)' : 'var(--green-bg, #e8f5e9)',
+                    color: m.tipo === 'EGRESO' ? 'var(--red, #e53935)' : m.tipo === 'PENDIENTE' ? '#e65100' : 'var(--green, #43a047)',
+                    background: m.tipo === 'EGRESO' ? 'var(--red-bg, #fbe9e7)' : m.tipo === 'PENDIENTE' ? '#fff3e0' : 'var(--green-bg, #e8f5e9)',
                   }}>
-                    {m.tipo === 'EGRESO' ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
-                    {m.tipo === 'EGRESO' ? 'Egreso' : 'Ingreso'}
+                    {m.tipo === 'EGRESO' ? <TrendingDown size={12} /> : m.tipo === 'PENDIENTE' ? <Clock size={12} /> : <TrendingUp size={12} />}
+                    {m.tipo === 'EGRESO' ? 'Egreso' : m.tipo === 'PENDIENTE' ? 'Pendiente' : 'Ingreso'}
                   </span>
                 </td>
                 <td style={{ ...tdStyle, fontWeight: 700, fontSize: 14, color: 'var(--accent-dark)' }}
@@ -499,6 +560,55 @@ export default function Caja() {
         </>
       )}
       </Card>
+      </> /* end movimientos tab */}
+
+      {activeTab === 'cuentas_empresa' && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
+            <SummaryCard label="Total Pendiente Empresas" value={totalPendienteEmpresas} color="#e65100" bg="#fff3e0" icon={<Clock size={16} />} />
+            <SummaryCard label="Empresas con deuda" value={empresasConDeuda} isCount color="var(--text-2)" bg="var(--surface-2, #f5f5f5)" icon={<FileText size={16} />} />
+          </div>
+          <Card>
+            {loading ? (
+              <EmptyState message="Cargando..." icon={<DollarSign size={48} />} />
+            ) : cuentasEmpresaPendientes.length === 0 ? (
+              <EmptyState message="No hay cuentas pendientes de empresas" icon={<Clock size={48} />} />
+            ) : (
+              <>
+              <Table headers={isAdmin
+                ? ['Fecha checkout', 'Empresa', 'Cliente', 'Habitación', 'Monto', '']
+                : ['Fecha checkout', 'Empresa', 'Cliente', 'Habitación', 'Monto']
+              }>
+                {cuentasEmpresaPendientes.slice((pageEmpresa - 1) * PER_PAGE, pageEmpresa * PER_PAGE).map(m => (
+                  <tr key={m.id}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    style={{ transition: 'background .12s' }}
+                  >
+                    <td style={tdStyle}>{new Date(m.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td style={{ ...tdStyle, fontWeight: 600 }}>{m.nombreEmpresa || '—'}</td>
+                    <td style={tdStyle}>{m.nombreCliente || '—'}</td>
+                    <td style={tdStyle}>{m.numeroHabitacion || '—'}</td>
+                    <td style={{ ...tdStyle, fontWeight: 700, color: '#e65100' }}>S/ {parseFloat(m.monto).toFixed(2)}</td>
+                    {isAdmin && (
+                      <td style={tdStyle}>
+                        <Btn style={{ fontSize: 11, padding: '3px 8px' }}
+                          onClick={() => { setCobrarModal(m); setCobrarMetodo('EFECTIVO'); }}>
+                          Registrar Pago
+                        </Btn>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </Table>
+              <div style={{ marginTop: 12 }}>
+                <Pagination page={pageEmpresa} total={cuentasEmpresaPendientes.length} perPage={PER_PAGE} onChange={setPageEmpresa} />
+              </div>
+              </>
+            )}
+          </Card>
+        </>
+      )}
 
       {/* Modal for Egreso / Ingreso Extra  — payload matches GastoRequestDTO */}
       <Modal open={modalOpen} onOpenChange={setModalOpen} title={modalTipo === 'EGRESO' ? 'Registrar Egreso' : 'Ingreso Extra'}>
@@ -574,6 +684,30 @@ export default function Caja() {
                   addToast(msg || 'Error al actualizar monto', 'error');
                 }
               }}>Guardar</Btn>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      {/* Cobrar empresa modal — admin only */}
+      <Modal open={!!cobrarModal} onOpenChange={(open) => !open && setCobrarModal(null)} title="Registrar Pago de Empresa" width={380}>
+        {cobrarModal && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+              {cobrarModal.nombreEmpresa} &middot; {cobrarModal.nombreCliente} &middot; S/ {parseFloat(cobrarModal.monto).toFixed(2)}
+            </div>
+            <Field label="Método de Pago" required>
+              <select
+                value={cobrarMetodo}
+                onChange={e => setCobrarMetodo(e.target.value)}
+                style={inputStyle}
+              >
+                {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <Btn variant="ghost" onClick={() => setCobrarModal(null)}>Cancelar</Btn>
+              <Btn onClick={handleCobrar} disabled={cobrarSubmitting}>Confirmar Pago</Btn>
             </div>
           </>
         )}

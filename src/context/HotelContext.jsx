@@ -275,7 +275,7 @@ export function HotelProvider({ children }) {
   }, []);
 
   const checkOut = useCallback(async (alquilerId, metodoPago) => {
-    const updated = await postCheckOut(alquilerId, metodoPago || 'EFECTIVO');
+    const updated = await postCheckOut(alquilerId, metodoPago || undefined);
     setAlquileres(p => p.map(a => a.id === alquilerId ? updated : a));
     setHabitaciones(p => p.map(h =>
       h.numero === updated.numeroHabitacion ? { ...h, estado: updated.estadoHabitacion } : h

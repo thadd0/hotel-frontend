@@ -67,7 +67,8 @@ export default function RecepcionGeneral() {
     if (!checkOutTarget || isCheckingOut) return;
     setIsCheckingOut(true);
     try {
-      await checkOut(checkOutTarget.id, checkOutMetodo);
+      const metodo = esAlquilerEmpresa(checkOutTarget) ? undefined : checkOutMetodo;
+      await checkOut(checkOutTarget.id, metodo);
       addToast('Check-out realizado con éxito', 'success');
       setCheckOutTarget(null);
       setCheckoutCuentaItems([]);
@@ -494,7 +495,7 @@ export default function RecepcionGeneral() {
               )}
             </div>
             )}
-            {verMontosCheckout && (
+            {verMontosCheckout && !esEmpresaCheckout && (
             <Field label="Método de Pago">
               <select style={inputStyle} value={checkOutMetodo} onChange={e => setCheckOutMetodo(e.target.value)}>
                 {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
