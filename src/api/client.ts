@@ -38,6 +38,12 @@ client.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Don't try to refresh if the failing request is login or refresh itself
+    const url = originalRequest.url || '';
+    if (url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout')) {
+      return Promise.reject(error);
+    }
+
     try {
       originalRequest._retry = true;
       const refreshResponse = await axios.post(`${API_BASE}/auth/refresh`, null, {
