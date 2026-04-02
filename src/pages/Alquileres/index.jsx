@@ -108,7 +108,8 @@ export default function Alquileres() {
     const currentCheckout = checkOutModal;
     setIsCheckingOut(true);
     try {
-      await checkOut(currentCheckout.id, metodoPago);
+      const esEmpresa = esAlquilerEmpresa(currentCheckout);
+      await checkOut(currentCheckout.id, esEmpresa ? undefined : metodoPago);
       addToast('Check-out realizado con éxito', 'success');
     } catch (error) {
       const msg = error?.response?.data?.message;
@@ -588,7 +589,7 @@ export default function Alquileres() {
               )}
             </div>
             )}
-            {verMontosCheckout && (
+            {!esEmpresaCheckout && (
             <Field label="Método de Pago">
               <select style={inputStyle} value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
                 {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
