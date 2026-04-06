@@ -5,24 +5,11 @@ import { ClipboardList, LogOut, Plus, Trash2, Check, Download, FileText, ArrowDo
 import { getCuentasByAlquiler, postCuenta, putCuenta, deleteCuenta } from '../../api/consumos';
 import { getMovimientosPorAlquiler } from '../../api/caja';
 import { patchAlquilerMontos } from '../../api/alquileres';
-import { descargarReporteAlquileresActivos, generarBoletaCheckout } from '../../utils/reportesPdf';
+import { descargarReporteAlquileresActivos, generarBoletaCheckout, generarRegistroAsistencia } from '../../utils/reportesPdf';
 import { esAlquilerEmpresa, METODOS_PAGO } from '../../utils/formHelpers';
+import { chipStyle, quickDateBtn } from '../../constants/filterStyles';
 
 const PER_PAGE = 12;
-
-const chipStyle = (active) => ({
-  border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-  background: active ? 'var(--accent-light,#e3f2fd)' : 'var(--surface)',
-  color: active ? 'var(--accent)' : 'var(--text-2)',
-  borderRadius: 999, padding: '5px 14px', fontSize: 13, cursor: 'pointer',
-  fontWeight: active ? 600 : 400, transition: 'background .12s, color .12s',
-});
-
-const quickDateBtn = {
-  border: '1px solid var(--border)', background: 'var(--surface)',
-  color: 'var(--text-2)', borderRadius: 6, padding: '5px 12px',
-  fontSize: 12, cursor: 'pointer', fontWeight: 500,
-};
 
 export default function Alquileres() {
   const { alquileres, checkOut, refreshAlquiler, userRole, empresas } = useHotel();
@@ -392,6 +379,12 @@ export default function Alquileres() {
               onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}>
               {sortDir === 'desc' ? 'Más reciente' : 'Más antiguo'}
             </Btn>
+            {tab === 'ACTIVO' && filteredSorted.length > 0 && (
+              <Btn variant="ghost" icon={<FileText size={14} />}
+                onClick={() => generarRegistroAsistencia(filteredSorted, filtroEmpresaNombre || null, new Date().toLocaleDateString('es-PE'))}>
+                Asistencia PDF
+              </Btn>
+            )}
             {tab === 'ACTIVO' && (
               <Btn variant="ghost" icon={<Download size={14} />} onClick={() => descargarReporteAlquileresActivos(filteredSorted)}>
                 Descargar PDF
@@ -483,6 +476,12 @@ export default function Alquileres() {
                   {a.nombreCliente}
                   {a.empresaNombre && (
                     <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginTop: 1 }}>{a.empresaNombre}</div>
+                  )}
+                  {a.huespedes && a.huespedes.length > 1 && (
+                    <div style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 2 }}>
+                      +{a.huespedes.length - 1} huésped(es):{' '}
+                      {a.huespedes.filter(h => h !== a.nombreCliente).join(', ')}
+                    </div>
                   )}
                 </td>
                 <td style={tdStyle}>

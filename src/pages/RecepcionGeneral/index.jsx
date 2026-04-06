@@ -6,6 +6,7 @@ import CheckInModal from '../../components/CheckInModal.jsx';
 import { BedDouble, Layers, ChevronDown, LogIn, LogOut, Building2, User, Clock, ClipboardList, Check } from 'lucide-react';
 import { esAlquilerEmpresa, METODOS_PAGO } from '../../utils/formHelpers';
 import { getCuentasByAlquiler } from '../../api/consumos';
+import { getHabitacionesDisponibles } from '../../api/habitaciones';
 import { useNavigate } from 'react-router-dom';
 
 const ESTADO_KEYS = Object.keys(ESTADOS);
@@ -19,6 +20,7 @@ export default function RecepcionGeneral() {
   const [fEstado,    setFEstado]    = useState('');
   const [busqueda,   setBusqueda]   = useState('');
   const [checkInOpen, setCheckInOpen] = useState(false);
+  const [habitacionesDisponibles, setHabitacionesDisponibles] = useState([]);
   const [checkOutTarget, setCheckOutTarget] = useState(null);
   const [checkOutMetodo, setCheckOutMetodo] = useState('EFECTIVO');
   const [checkoutCuentaItems, setCheckoutCuentaItems] = useState([]);
@@ -38,7 +40,15 @@ export default function RecepcionGeneral() {
     return mP && mE && mB;
   });
 
-  const habitacionesDisponibles = habitaciones.filter(h => h.estado === 'DISPONIBLE');
+  const openCheckIn = async () => {
+    try {
+      const disponibles = await getHabitacionesDisponibles();
+      setHabitacionesDisponibles(disponibles);
+    } catch {
+      setHabitacionesDisponibles(habitaciones.filter(h => h.estado === 'DISPONIBLE'));
+    }
+    setCheckInOpen(true);
+  };
 
   const handleCheckIn = async (checkInData) => {
     try {
@@ -88,7 +98,7 @@ export default function RecepcionGeneral() {
   return (
     <div className="page-anim">
       <PageHeader title="Recepción General" subtitle={`Panel de habitaciones · ${habitaciones.length}`}>
-        <Btn icon={<LogIn size={14} />} onClick={() => setCheckInOpen(true)}>Check-In</Btn>
+        <Btn icon={<LogIn size={14} />} onClick={openCheckIn}>Check-In</Btn>
       </PageHeader>
 
       {/* Estadísticas */}

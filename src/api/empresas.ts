@@ -5,8 +5,11 @@ import type { EmpresaDTO } from '../types';
 export const getEmpresas = async (): Promise<EmpresaDTO[]> => {
   try {
     return await apiFetch('/api/admin/empresas');
-  } catch {
-    return apiFetch('/api/recepcion/empresas');
+  } catch (error: any) {
+    if (error?.response?.status === 403) {
+      return apiFetch('/api/recepcion/empresas');
+    }
+    throw error;
   }
 };
 

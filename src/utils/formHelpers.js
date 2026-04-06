@@ -3,6 +3,7 @@ export const METODOS_PAGO = [
   { value: 'EFECTIVO', label: 'Efectivo' },
   { value: 'TARJETA', label: 'Tarjeta' },
   { value: 'YAPE', label: 'Yape' },
+  { value: 'PLIN', label: 'Plin' },
   { value: 'TRANSFERENCIA', label: 'Transferencia' },
 ];
 

@@ -30,8 +30,6 @@ export default function CheckInModal({
   const [adelanto, setAdelanto] = useState('');
   const [metodoPago, setMetodoPago] = useState('EFECTIVO');
 
-  const todayDate = new Date().toISOString().split("T")[0];
-
   // Selected client (first one — backend accepts one client per check-in)
   const selectedCliente = clientes.find((c) => c.id === representativeId) || clientes[0];
   const clienteEsEmpresa = Boolean(selectedCliente?.empresaNombre || selectedCliente?.empresaId);
@@ -83,6 +81,7 @@ export default function CheckInModal({
       idTipoAlquiler: Number(tipoAlquilerId),
       cantTiempo,
       metodoPago: clienteEsEmpresa ? undefined : metodoPago,
+      idHuespedes: clientes.map(c => c.id),
     };
     if (!clienteEsEmpresa && adelanto && Number(adelanto) > 0) {
       checkInData.adelanto = Number(adelanto);
@@ -325,18 +324,44 @@ export default function CheckInModal({
             <div className="summary-section">
               <h4 className="summary-title">Datos del check-in</h4>
               <div className="summary-rows">
-                <div className="summary-row">
-                  <span className="room-num">Cliente</span>
-                  <span className="room-rental" style={{ textAlign: 'right' }}>
-                    {selectedCliente?.nombre || '—'}
-                    {selectedCliente?.empresaNombre ? ` · ${selectedCliente.empresaNombre}` : ''}
+                {selectedCliente?.empresaNombre && (
+                  <div className="summary-row">
+                    <span className="room-num">Empresa</span>
+                    <span className="room-rental" style={{ textAlign: 'right', fontWeight: 700 }}>
+                      {selectedCliente.empresaNombre}
+                    </span>
+                  </div>
+                )}
+                <div className="summary-row" style={{ alignItems: 'flex-start' }}>
+                  <span className="room-num" style={{ paddingTop: 2 }}>
+                    {clientes.length === 1 ? 'Huésped' : `Huéspedes (${clientes.length})`}
                   </span>
-                </div>
-                <div className="summary-row">
-                  <span className="room-num">Representante</span>
-                  <span className="room-rental" style={{ textAlign: 'right' }}>
-                    {selectedCliente?.nombre || '—'}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'right' }}>
+                    {clientes.map((c, i) => {
+                      const esTitular = c.id === (representativeId || clientes[0]?.id);
+                      return (
+                        <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                          {clientes.length > 1 && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, minWidth: 18, height: 18,
+                              background: esTitular ? 'var(--accent)' : 'var(--surface-2, #f0f0f0)',
+                              color: esTitular ? '#fff' : 'var(--text-muted)',
+                              borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              flexShrink: 0,
+                            }}>{i + 1}</span>
+                          )}
+                          <span className="room-rental" style={{ margin: 0 }}>
+                            {c.nombre}
+                            {clientes.length > 1 && esTitular && (
+                              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-light, #e3f2fd)', borderRadius: 4, padding: '1px 5px' }}>
+                                titular
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="summary-row">
                   <span className="room-num">Habitación</span>

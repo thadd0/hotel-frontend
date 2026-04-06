@@ -5,6 +5,10 @@ export async function getHabitaciones() {
   return apiFetch<HabitacionDTO[]>('/api/recepcion/habitaciones');
 }
 
+export async function getHabitacionesDisponibles() {
+  return apiFetch<HabitacionDTO[]>('/api/recepcion/habitaciones/disponibles');
+}
+
 export async function postHabitacion(habitacion: Omit<HabitacionDTO, 'id'>) {
   return apiFetch<HabitacionDTO>('/api/recepcion/habitaciones', {
     method: 'POST',

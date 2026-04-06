@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { getCountries, getCountryCallingCode } from 'libphonenumber-js/min';
+import { useState, useCallback, useEffect } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Card, Field, Btn, Modal, useToast } from '../../components/UI/index.jsx';
 import { User, KeyRound, Pencil } from 'lucide-react';
 import { getMe, updateMe, changePassword } from '../../api/usuarios';
+import { COUNTRY_DIAL_OPTIONS, parseIntlPhone, buildIntlPhone } from '../../utils/phone';
+import { buildTiposDocPermitidos } from '../../utils/formHelpers';
 
 const inputStyle = {
   width: '100%', padding: '8px 12px', borderRadius: 'var(--r-md, 8px)',
@@ -11,51 +12,10 @@ const inputStyle = {
   color: 'var(--text)', background: 'var(--surface)', fontFamily: 'inherit',
 };
 
-const COUNTRY_DIAL_OPTIONS = getCountries()
-  .map((code) => ({
-    code,
-    dialCode: `+${getCountryCallingCode(code)}`,
-    label: `${code} ${`+${getCountryCallingCode(code)}`}`,
-  }))
-  .sort((a, b) => a.code.localeCompare(b.code));
-
-function parseIntlPhone(rawPhone) {
-  const raw = String(rawPhone || '').trim();
-  const match = raw.match(/^(\+\d{1,4})\s*(.*)$/);
-  if (!match) {
-    return { countryCode: 'PE', number: raw };
-  }
-
-  const dialCode = match[1];
-  const number = match[2] || '';
-  const found = COUNTRY_DIAL_OPTIONS.find((c) => c.dialCode === dialCode);
-  return {
-    countryCode: found?.code || 'PE',
-    number,
-  };
-}
-
-function buildIntlPhone(countryCode, number) {
-  const clean = String(number || '').trim();
-  if (!clean) return null;
-  const dialCode = COUNTRY_DIAL_OPTIONS.find((c) => c.code === countryCode)?.dialCode || '+51';
-  return `${dialCode} ${clean}`;
-}
-
 export default function Perfil() {
   const { userName, userRole, tiposDocumento } = useHotel();
   const addToast = useToast();
-  const tiposDocumentoPermitidos = useMemo(() => {
-    const allowed = ['DNI', 'CE', 'PASAPORTE'];
-    const source = Array.isArray(tiposDocumento) && tiposDocumento.length
-      ? tiposDocumento
-      : [
-          { id: 1, nombre: 'DNI' },
-          { id: 2, nombre: 'CE' },
-          { id: 3, nombre: 'PASAPORTE' },
-        ];
-    return source.filter((td) => allowed.includes(td?.nombre));
-  }, [tiposDocumento]);
+  const tiposDocumentoPermitidos = buildTiposDocPermitidos(tiposDocumento);
 
   const [perfil, setPerfil] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);

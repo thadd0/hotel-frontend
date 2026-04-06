@@ -2,26 +2,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, Field, Modal, EmptyState, Pagination, Card, RSelect, SearchInput, inputStyle, tdStyle, PageHeader, useToast } from '../../components/UI/index.jsx';
 import { DollarSign, TrendingUp, TrendingDown, Plus, FileText, Download, Pencil, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Clock } from 'lucide-react';
-import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy, cobrarMovimientoEmpresa } from '../../api/caja';
+import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy, cobrarMovimientoEmpresa, cobrarLoteEmpresa } from '../../api/caja';
 import { descargarReporteCajaMovimientos, generarCierreCaja, generarReporteEmpresa } from '../../utils/reportesPdf';
 import { sanitizeDecimal, METODOS_PAGO } from '../../utils/formHelpers';
+import { chipStyle, quickDateBtn } from '../../constants/filterStyles';
 
 const PER_PAGE = 15;
 const CAJA_FILTROS_STORAGE_KEY = 'caja.filtros.rango';
-
-const chipStyle = (active) => ({
-  border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-  background: active ? 'var(--accent-light,#e3f2fd)' : 'var(--surface)',
-  color: active ? 'var(--accent)' : 'var(--text-2)',
-  borderRadius: 999, padding: '5px 14px', fontSize: 13, cursor: 'pointer',
-  fontWeight: active ? 600 : 400, transition: 'background .12s, color .12s',
-});
-
-const quickDateBtn = {
-  border: '1px solid var(--border)', background: 'var(--surface)',
-  color: 'var(--text-2)', borderRadius: 6, padding: '5px 12px',
-  fontSize: 12, cursor: 'pointer', fontWeight: 500,
-};
 
 const amountInputWrapStyle = {
   display: 'grid',
@@ -136,6 +123,11 @@ export default function Caja() {
   const [cobrarMetodo, setCobrarMetodo] = useState('EFECTIVO');
   const [cobrarSubmitting, setCobrarSubmitting] = useState(false);
   const [pageEmpresa, setPageEmpresa] = useState(1);
+
+  // Cobrar lote empresa state (admin only)
+  const [cobrarLoteModal, setCobrarLoteModal] = useState(false);
+  const [cobrarLoteMetodo, setCobrarLoteMetodo] = useState('EFECTIVO');
+  const [cobrarLoteSubmitting, setCobrarLoteSubmitting] = useState(false);
 
   const fetchResumen = useCallback(async () => {
     setLoading(true);
@@ -267,6 +259,24 @@ export default function Caja() {
       addToast(msg || 'Error al registrar el pago.', 'error');
     } finally {
       setCobrarSubmitting(false);
+    }
+  };
+
+  const handleCobrarLote = async () => {
+    // Cobra exactamente los movimientos visibles en la tabla (respeta todos los filtros activos)
+    if (cuentasEmpresaPendientes.length === 0) return;
+    setCobrarLoteSubmitting(true);
+    try {
+      const ids = cuentasEmpresaPendientes.map((mov) => mov.id);
+      await cobrarLoteEmpresa(ids, cobrarLoteMetodo);
+      addToast(`${cuentasEmpresaPendientes.length} movimiento(s) cobrados correctamente.`, 'success');
+      setCobrarLoteModal(false);
+      await fetchResumen();
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al cobrar en lote.', 'error');
+    } finally {
+      setCobrarLoteSubmitting(false);
     }
   };
 
@@ -420,6 +430,13 @@ export default function Caja() {
               }}>
               Descargar PDF
             </Btn>
+            {isAdmin && activeTab === 'cuentas_empresa' && cuentasEmpresaPendientes.length > 0 && (
+              <Btn icon={<TrendingUp size={14} />}
+                onClick={() => { setCobrarLoteMetodo('EFECTIVO'); setCobrarLoteModal(true); }}
+                title={`Cobrar los ${cuentasEmpresaPendientes.length} pendientes visibles`}>
+                Cobrar todo ({cuentasEmpresaPendientes.length})
+              </Btn>
+            )}
             {activeTab === 'movimientos' && <Btn variant="ghost" icon={<FileText size={14} />}
               onClick={async () => {
                 const hoy = new Date().toISOString().slice(0, 10);
@@ -766,6 +783,35 @@ export default function Caja() {
             </div>
           </>
         )}
+      </Modal>
+
+      {/* Cobrar todo el lote de empresa modal — admin only */}
+      <Modal open={cobrarLoteModal} onOpenChange={(open) => !open && setCobrarLoteModal(false)} title="Cobrar todo lo filtrado" width={420}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>
+          Se registrarán como <strong>INGRESO</strong> todos los movimientos PENDIENTE
+          {filtroEmpresaNombre
+            ? <> de <strong>{filtroEmpresaNombre}</strong></>   
+            : ' visibles en la tabla'
+          } en el período seleccionado.
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#e65100', marginBottom: 14 }}>
+          {cuentasEmpresaPendientes.length} movimiento(s) &middot; Total: S/ {totalPendienteEmpresas.toFixed(2)}
+        </div>
+        <Field label="Método de Pago" required>
+          <select
+            value={cobrarLoteMetodo}
+            onChange={e => setCobrarLoteMetodo(e.target.value)}
+            style={inputStyle}
+          >
+            {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </Field>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <Btn variant="ghost" onClick={() => setCobrarLoteModal(false)}>Cancelar</Btn>
+          <Btn onClick={handleCobrarLote} disabled={cobrarLoteSubmitting}>
+            Confirmar Pago en Lote
+          </Btn>
+        </div>
       </Modal>
     </div>
   );

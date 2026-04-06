@@ -46,17 +46,23 @@ client.interceptors.response.use(
 
     try {
       originalRequest._retry = true;
-      const refreshResponse = await axios.post(`${API_BASE}/auth/refresh`, null, {
+      const refreshResponse = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        withCredentials: true,
       });
+      if (!refreshResponse.ok) {
+        throw new Error('Refresh failed');
+      }
+      const refreshData = await refreshResponse.json();
 
-      const newAccessToken = refreshResponse?.data?.access_token;
+      const newAccessToken = refreshData?.access_token;
       if (!newAccessToken) {
         throw new Error('Refresh response missing access token');
       }
 
       setAccessToken(newAccessToken);
+      window.dispatchEvent(new CustomEvent('auth:tokenRefreshed', { detail: newAccessToken }));
       originalRequest.headers = originalRequest.headers || {};
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
       return client.request(originalRequest);

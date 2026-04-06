@@ -855,3 +855,339 @@ export function generarReporteEmpresa(movimientos, empresaNombre, periodo = '') 
   const safeName = empresaNombre.replace(/[^a-zA-Z0-9]/g, '_');
   doc.save(`reporte-empresa-${safeName}-${normalizeDateForFilename()}.pdf`);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   REGISTRO DE ASISTENCIA  (landscape A4)
+   Un registro por huésped (expande alquiler.huespedes[]).
+   Columnas: Item | Nombres y Apellidos | N° Hab. | Hora Salida | Firma | Hora Llegada | Firma
+   ═══════════════════════════════════════════════════════════ */
+export function generarRegistroAsistencia(alquileres, empresaNombre, fecha) {
+  const doc = new jsPDF('l');
+  const pageW = doc.internal.pageSize.getWidth();   // 297
+  const pageH = doc.internal.pageSize.getHeight();  // 210
+
+  /* ─── Timestamp de impresión ─── */
+  const now = new Date();
+  const diaLargo  = DIAS_LARGO[now.getDay()];
+  const ddNow     = now.getDate();
+  const mesNow    = MESES[now.getMonth()];
+  const yyyyNow   = now.getFullYear();
+  const hhNow     = String(now.getHours()).padStart(2, '0');
+  const miNow     = String(now.getMinutes()).padStart(2, '0');
+  const fechaImpresion = `${diaLargo} ${ddNow} de ${mesNow} de ${yyyyNow}   ${hhNow}:${miNow}`;
+
+  /* ─── Encabezado (brand + título) ─── */
+  /* Barra de marca */
+  doc.setFillColor(...C.accent);
+  doc.rect(0, 0, pageW, 26, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.text(BRAND_NAME, 14, 11);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('REGISTRO DE ASISTENCIA', pageW / 2, 11, { align: 'center' });
+
+  /* Empresa en la misma barra, derecha */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 220);
+  doc.text(`EMPRESA: ${(empresaNombre || '—').toUpperCase()}`, pageW - 14, 11, { align: 'right' });
+
+  /* Segunda línea barra: nombre empresa grande centrado */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text((empresaNombre || '—').toUpperCase(), pageW / 2, 20, { align: 'center' });
+
+  let y = 32;
+
+  /* ─── Banner de fecha de impresión ─── */
+  /* Fondo con bordes redondeados */
+  doc.setFillColor(255, 248, 225); // warm amber tint
+  doc.setDrawColor(...C.accentDk);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(14, y - 5, pageW - 28, 11, 2, 2, 'FD');
+
+  /* Icono — texto "📅" simulado con label */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...C.accentDk);
+  doc.text('FECHA DE IMPRESIÓN', 18, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...C.dark);
+  doc.text(fechaImpresion, 75, y);
+
+  /* Total de huéspedes alineado a la derecha en el mismo banner */
+  const totalHuespedes = (alquileres || []).reduce((s, a) => {
+    return s + ((a.huespedes && a.huespedes.length > 0) ? a.huespedes.length : 1);
+  }, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.accentDk);
+  doc.text(`Total huéspedes: ${totalHuespedes}`, pageW - 16, y, { align: 'right' });
+  doc.setLineWidth(0.2);
+
+  y += 10;
+
+  /* ─── Tabla ─── */
+  /* Columnas: 12+80+16+42+38+42+39 = 269 = 297-28 */
+  const columns = [
+    { label: 'Item',                width: 12 },
+    { label: 'Apellidos y Nombres', width: 80 },
+    { label: 'N° Hab.',             width: 16 },
+    { label: 'Hora Salida',         width: 42 },
+    { label: 'Firma',               width: 38 },
+    { label: 'Hora Llegada',        width: 42 },
+    { label: 'Firma',               width: 39 },
+  ];
+
+  y = drawTableHeader(doc, y, columns, 8);
+
+  /*
+   * X positions (cumulative from 14):
+   * col0: starts 14 w=12 → Xitem=16
+   * col1: starts 26 w=80 → Xnom=28
+   * col2: starts 106 w=16 → Xhab=108
+   * col3: starts 122 w=42 → Xsal=124
+   * col4: starts 164 w=38 → XF1 rect at 165
+   * col5: starts 202 w=42 → Xlleg=204
+   * col6: starts 244 w=39 → XF2 rect at 245
+   */
+  const Xitem = 16;
+  const Xnom  = 28;
+  const Xhab  = 108;
+  const Xsal  = 124;
+  const XF1   = 165;  // Firma 1 rect
+  const Xlleg = 204;
+  const XF2   = 245;  // Firma 2 rect
+
+  /* Expand cada alquiler a una fila por huésped */
+  const rows = [];
+  (alquileres || []).forEach(a => {
+    const nombres = (a.huespedes && a.huespedes.length > 0) ? a.huespedes : [a.nombreCliente];
+    nombres.forEach(nombre => {
+      rows.push({
+        nombre,
+        hab:     a.numeroHabitacion,
+        salida:  a.fechaSalida  || null,
+        llegada: a.fechaIngreso || null,
+      });
+    });
+  });
+
+  const rowH = 9;
+
+  rows.forEach((row, idx) => {
+    if (y > pageH - 22) {
+      doc.addPage();
+
+      /* Header simplificado en páginas siguientes */
+      doc.setFillColor(...C.accent);
+      doc.rect(0, 0, pageW, 18, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(255, 255, 255);
+      doc.text('REGISTRO DE ASISTENCIA', pageW / 2, 8, { align: 'center' });
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 220);
+      doc.text((empresaNombre || '').toUpperCase(), pageW / 2, 14, { align: 'center' });
+      y = 24;
+
+      y = drawTableHeader(doc, y, columns, 8);
+    }
+
+    drawRowBg(doc, y, idx, rowH);
+
+    /* Item */
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.muted);
+    doc.text(String(idx + 1), Xitem, y);
+
+    /* Nombre */
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...C.dark);
+    doc.text(String(row.nombre || '—').slice(0, 44), Xnom, y);
+
+    /* Habitación */
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...C.accent);
+    doc.text(String(row.hab || '—'), Xhab, y);
+
+    /* Hora Salida y Hora Llegada — vacíos, se rellenan manualmente en papel */
+    /* Recuadros de firma — vacíos para firma manuscrita */
+    doc.setDrawColor(...C.line);
+    doc.rect(XF1, y - 5.5, 35, 8);
+    doc.rect(XF2, y - 5.5, 36, 8);
+
+    /* Separador de fila */
+    doc.setDrawColor(...C.line);
+    doc.line(14, y + 3, pageW - 14, y + 3);
+    y += rowH;
+  });
+
+  if (rows.length === 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(...C.muted);
+    doc.text('No hay huéspedes registrados para los filtros seleccionados.', 14, y + 6);
+  }
+
+  /* ─── Pie de página con n° de página ─── */
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(...C.muted);
+    doc.text(
+      `${BRAND_NAME} — ${(empresaNombre || '').toUpperCase()} — Impresión: ${fechaImpresion} — Página ${i} de ${pageCount}`,
+      pageW / 2, pageH - 6, { align: 'center' }
+    );
+  }
+
+  const safeName2 = (empresaNombre || 'asistencia').replace(/[^a-zA-Z0-9]/g, '_');
+  doc.save(`registro-asistencia-${safeName2}-${normalizeDateForFilename()}.pdf`);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   REPORTE MENSUAL POR HABITACIÓN  (portrait A4)
+   ═══════════════════════════════════════════════════════════ */
+export function generarReporteMensualHabitacion(habitacion, alquileres, mes, anio) {
+  const doc = new jsPDF();
+  const pageW = doc.internal.pageSize.getWidth();
+
+  const mesNombre = MESES[Number(mes) - 1] || String(mes);
+  const titulo = `Reporte Mensual — Hab. ${habitacion?.numero || '?'}`;
+  const subtitulo = `${mesNombre} ${anio} · ${habitacion?.tipoHabitacion?.nombre || ''} · Piso ${habitacion?.piso ?? '?'}`;
+  let y = writeHeader(doc, titulo, subtitulo);
+
+  /* ─── Resumen rápido ─── */
+  const totalEstadias = (alquileres || []).length;
+  const totalMonto    = (alquileres || []).reduce((s, a) => s + (Number(a.subTotal) || 0), 0);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.muted);
+  doc.text(`Estadías: ${totalEstadias}`, 14, y);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.accent);
+  doc.text(`Total: S/ ${totalMonto.toFixed(2)}`, 70, y);
+  y += 9;
+
+  /* Columnas (total = 10+46+42+42+22+20 = 182 = 210-28) */
+  const columns = [
+    { label: 'Nro',     width: 10 },
+    { label: 'Cliente', width: 46 },
+    { label: 'Ingreso', width: 42 },
+    { label: 'Salida',  width: 42 },
+    { label: 'Dur.',    width: 22, align: 'right' },
+    { label: 'S/.',     width: 20, align: 'right' },
+  ];
+
+  y = drawTableHeader(doc, y, columns, 8);
+
+  /* X positions */
+  const Xnro  = 16;   // col 14 +2
+  const Xcli  = 27;   // col 24 +3
+  const Xing  = 74;   // col 70 +4
+  const Xsal  = 116;  // col 112 +4
+  const Xdur  = 176;  // right-align: col ends at 176
+  const Xmon  = 196;  // right-align: col ends at 196
+
+  doc.setFontSize(8.5);
+  (alquileres || []).forEach((a, idx) => {
+    const hasEmpresa = Boolean(a.empresaNombre);
+    const rowH = hasEmpresa ? 10 : 8;
+
+    if (y > 262) {
+      doc.addPage();
+      y = 20;
+      y = drawTableHeader(doc, y, columns, 8);
+      doc.setFontSize(8.5);
+    }
+
+    drawRowBg(doc, y, idx, rowH);
+
+    /* Nro */
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.muted);
+    doc.text(String(idx + 1), Xnro, y);
+
+    /* Cliente + empresa */
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.dark);
+    doc.text(String(a.nombreCliente || '—').slice(0, 26), Xcli, y);
+    if (hasEmpresa) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...C.muted);
+      doc.text(String(a.empresaNombre).slice(0, 26), Xcli, y + 4);
+      doc.setFontSize(8.5);
+    }
+
+    /* Ingreso / Salida */
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.dark);
+    doc.text(formatDateTime(a.fechaIngreso), Xing, y);
+    doc.text(a.fechaSalida ? formatDateTime(a.fechaSalida) : '—', Xsal, y);
+
+    /* Duración */
+    let durStr = '—';
+    if (a.fechaIngreso && a.fechaSalida) {
+      const diffMs = new Date(a.fechaSalida).getTime() - new Date(a.fechaIngreso).getTime();
+      if (diffMs > 0) {
+        const diffH = diffMs / 3_600_000;
+        durStr = diffH < 24 ? `${diffH.toFixed(1)}h` : `${(diffH / 24).toFixed(1)}d`;
+      }
+    }
+    doc.setTextColor(...C.mid);
+    doc.text(durStr, Xdur, y, { align: 'right' });
+
+    /* Monto */
+    const monto = Number(a.subTotal || 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.dark);
+    doc.text(`S/ ${monto.toFixed(2)}`, Xmon, y, { align: 'right' });
+
+    /* Separador */
+    doc.setDrawColor(...C.line);
+    const lineY = hasEmpresa ? y + 5.5 : y + 2.5;
+    doc.line(14, lineY, pageW - 14, lineY);
+    y += hasEmpresa ? 10 : 8;
+  });
+
+  if (!alquileres || alquileres.length === 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(...C.muted);
+    doc.text('No hay estadías registradas para este período.', 14, y + 6);
+    y += 14;
+  }
+
+  /* Fila de total */
+  y += 4;
+  if (y > 270) { doc.addPage(); y = 20; }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...C.mid);
+  doc.text('TOTAL', Xdur - 24, y);
+  doc.setTextColor(...C.accent);
+  doc.text(`S/ ${totalMonto.toFixed(2)}`, Xmon, y, { align: 'right' });
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(...C.muted);
+    doc.text(`${BRAND_NAME} — Página ${i} de ${pageCount}`, pageW / 2, 290, { align: 'center' });
+  }
+
+  const habNum = String(habitacion?.numero || 'X');
+  doc.save(`reporte-mensual-hab${habNum}-${anio}-${String(mes).padStart(2, '0')}.pdf`);
+}

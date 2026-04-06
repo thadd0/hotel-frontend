@@ -34,3 +34,20 @@ export async function patchAlquilerMontos(id: number, data: { subTotal: number; 
   });
 }
 
+export async function postAgregarHuesped(idAlquiler: number, clienteId: number): Promise<AlquilerResponseDTO> {
+  return apiFetch(`/api/recepcion/alquiler/${idAlquiler}/huespedes/${clienteId}`, {
+    method: 'POST',
+  });
+}
+
+export async function deleteQuitarHuesped(idAlquiler: number, clienteId: number): Promise<AlquilerResponseDTO> {
+  return apiFetch(`/api/recepcion/alquiler/${idAlquiler}/huespedes/${clienteId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getReporteMensualHabitacion(habitacionId: number, mes: number, anio: number): Promise<AlquilerResponseDTO[]> {
+  return apiFetch('/api/recepcion/alquiler/reporte-mensual', {
+    params: { habitacionId, mes, anio },
+  });
+}

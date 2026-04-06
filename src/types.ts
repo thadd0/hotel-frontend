@@ -76,8 +76,10 @@ export type AlquilerResponseDTO = {
   pagoPendiente: number;
   fechaIngreso: string;
   fechaPrevista: string;
+  fechaSalida?: string;
   estadoAlquiler: 'ACTIVO' | 'FINALIZADO';
   estadoHabitacion: 'DISPONIBLE' | 'OCUPADA' | 'LIMPIEZA' | 'MANTENIMIENTO';
+  huespedes?: string[];
 };
 
 export type CuentaAlquilerDTO = {
@@ -133,7 +135,8 @@ export type CheckInRequestDTO = {
   idTipoAlquiler: number;
   cantTiempo: number;
   adelanto?: number;
-  metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'PLIN';
+  metodoPago?: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'PLIN';
+  idHuespedes?: number[];
 };
 
 export type GastoRequestDTO = {

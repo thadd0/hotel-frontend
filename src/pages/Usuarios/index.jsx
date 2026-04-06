@@ -185,7 +185,7 @@ export default function Usuarios() {
       </Card>
 
       {loading ? (
-        <EmptyState message="Cargando recepcionistas..." icon={<UserCog size={48} />} />
+        <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-2)', fontSize: 14 }}>Cargando recepcionistas…</div>
       ) : paged.length === 0 ? (
         <EmptyState message="No hay recepcionistas en backend" icon={<UserCog size={48} />} />
       ) : (

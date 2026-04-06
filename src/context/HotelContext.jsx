@@ -65,10 +65,14 @@ export function HotelProvider({ children }) {
         const payload = JSON.parse(atob(savedToken.split('.')[1]));
         if (payload.exp && payload.exp * 1000 < Date.now()) {
           clearAuthStorage();
+          setIsLoggedIn(false);
+          setToken(null);
           return;
         }
       } catch (_) {
         clearAuthStorage();
+        setIsLoggedIn(false);
+        setToken(null);
         return;
       }
       setIsLoggedIn(true);
@@ -83,6 +87,19 @@ export function HotelProvider({ children }) {
     window.addEventListener('auth:logout', handleAuthLogout);
     return () => window.removeEventListener('auth:logout', handleAuthLogout);
   }, [logout]);
+
+  // Keep React token state in sync when the API interceptor silently refreshes it
+  useEffect(() => {
+    const handleTokenRefreshed = (e) => {
+      const newToken = e.detail;
+      if (newToken) {
+        setToken(newToken);
+        setUserRole(deriveAppRole(newToken));
+      }
+    };
+    window.addEventListener('auth:tokenRefreshed', handleTokenRefreshed);
+    return () => window.removeEventListener('auth:tokenRefreshed', handleTokenRefreshed);
+  }, []);
 
   // Keep app role aligned with the current access token
   useEffect(() => {

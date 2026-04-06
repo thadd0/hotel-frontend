@@ -7,7 +7,9 @@ import {
   EmptyState, Pagination, Field, inputStyle, inputFocus, inputBlur,
   useToast, PopoverMenu, PageHeader, filterLabel,
 } from '../../components/UI/index.jsx';
-import { Plus, BedDouble } from 'lucide-react';
+import { Plus, BedDouble, FileText } from 'lucide-react';
+import { getReporteMensualHabitacion } from '../../api/alquileres';
+import { generarReporteMensualHabitacion } from '../../utils/reportesPdf';
 
 const PER_PAGE = 8;
 const empty = { numero:'', piso:'', tipoHabitacionId:'', descripcion:'', estado:'DISPONIBLE' };
@@ -28,6 +30,11 @@ export default function Habitaciones() {
   const [fPiso,     setFPiso]     = useState('');
 
   const [busqueda,  setBusqueda]  = useState('');
+
+  const [reporteMensualHab, setReporteMensualHab] = useState(null);
+  const [reporteMes, setReporteMes] = useState(String(new Date().getMonth() + 1));
+  const [reporteAnio, setReporteAnio] = useState(String(new Date().getFullYear()));
+  const [reporteLoading, setReporteLoading] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -100,6 +107,21 @@ export default function Habitaciones() {
       addToast(msg || 'Error al cambiar el estado', 'error');
     }
     setEstadoConfirm(null);
+  };
+
+  const handleGenerarReporteMensual = async () => {
+    if (!reporteMensualHab) return;
+    setReporteLoading(true);
+    try {
+      const alqs = await getReporteMensualHabitacion(reporteMensualHab.id, Number(reporteMes), Number(reporteAnio));
+      generarReporteMensualHabitacion(reporteMensualHab, alqs, Number(reporteMes), Number(reporteAnio));
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al generar el reporte', 'error');
+    } finally {
+      setReporteLoading(false);
+      setReporteMensualHab(null);
+    }
   };
 
   return (
@@ -179,8 +201,14 @@ export default function Habitaciones() {
                       </PopoverMenu>
                     </div>
                   </td>
-                  <td style={{ ...tdStyle, width:80 }}>
-                    <div style={{ display:'flex', gap:5 }}>
+                  <td style={{ ...tdStyle, width: 'auto' }}>
+                    <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+                      <Btn variant="ghost" style={{ fontSize: 11, padding: '3px 8px' }}
+                        icon={<FileText size={12} />}
+                        onClick={() => setReporteMensualHab(hab)}
+                        title="Reporte mensual de estadías">
+                        Reporte
+                      </Btn>
                       {!readOnly && (
                         <>
                           <EditBtn   onClick={()=>openEdit(hab)} />
@@ -244,6 +272,39 @@ export default function Habitaciones() {
           />
         </>
       )}
+
+      {/* Reporte mensual — visible para todos los roles */}
+      <Modal open={!!reporteMensualHab} onOpenChange={open => !open && setReporteMensualHab(null)} title="Reporte Mensual de Habitación" width={380}>
+        {reporteMensualHab && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Hab. <strong>{reporteMensualHab.numero}</strong> — {reporteMensualHab.tipoHabitacion?.nombre} · Piso {reporteMensualHab.piso}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field label="Mes">
+                <select value={reporteMes} onChange={e => setReporteMes(e.target.value)} style={inputStyle}>
+                  {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                    <option key={i+1} value={String(i+1)}>{m}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Año">
+                <select value={reporteAnio} onChange={e => setReporteAnio(e.target.value)} style={inputStyle}>
+                  {Array.from({ length: 5 }, (_, i) => String(new Date().getFullYear() - i)).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <Btn variant="ghost" onClick={() => setReporteMensualHab(null)}>Cancelar</Btn>
+              <Btn icon={<FileText size={14} />} onClick={handleGenerarReporteMensual} disabled={reporteLoading}>
+                {reporteLoading ? 'Generando…' : 'Descargar PDF'}
+              </Btn>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

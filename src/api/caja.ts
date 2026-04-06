@@ -44,3 +44,15 @@ export async function cobrarMovimientoEmpresa(id: number, metodoPago: string): P
     params: { metodoPago },
   });
 }
+
+export async function cobrarLoteEmpresa(
+  empresaId: number,
+  desde: string,
+  hasta: string,
+  metodoPago: string
+): Promise<MovimientoCajaResponseDTO[]> {
+  return apiFetch('/api/recepcion/caja/cobrar-lote-empresa', {
+    method: 'POST',
+    params: { empresaId, desde, hasta, metodoPago },
+  });
+}
