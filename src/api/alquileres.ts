@@ -51,3 +51,17 @@ export async function getReporteMensualHabitacion(habitacionId: number, mes: num
     params: { habitacionId, mes, anio },
   });
 }
+
+export async function previewDeleteHistorial(desde?: string, hasta?: string): Promise<{ cantidad: number; totalSubTotal: number; periodo: string }> {
+  const params: Record<string, string> = {};
+  if (desde) params.desde = desde;
+  if (hasta) params.hasta = hasta;
+  return apiFetch('/api/recepcion/alquiler/historial/preview-eliminacion', { params });
+}
+
+export async function deleteHistorial(desde?: string, hasta?: string): Promise<{ message: string; eliminados: number }> {
+  const params: Record<string, string> = {};
+  if (desde) params.desde = desde;
+  if (hasta) params.hasta = hasta;
+  return apiFetch('/api/recepcion/alquiler/historial', { method: 'DELETE', params });
+}

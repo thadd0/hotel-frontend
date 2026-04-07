@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, Card, EmptyState, Pagination, Modal, Field, inputStyle, tdStyle, PageHeader, TabBtn, SearchInput, useToast } from '../../components/UI/index.jsx';
-import { ClipboardList, LogOut, Plus, Trash2, Check, Download, FileText, ArrowDown, ArrowUp, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { ClipboardList, LogOut, Plus, Trash2, Check, Download, FileText, ArrowDown, ArrowUp, Filter, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { getCuentasByAlquiler, postCuenta, putCuenta, deleteCuenta } from '../../api/consumos';
 import { getMovimientosPorAlquiler } from '../../api/caja';
-import { patchAlquilerMontos } from '../../api/alquileres';
+import { patchAlquilerMontos, previewDeleteHistorial, deleteHistorial } from '../../api/alquileres';
 import { descargarReporteAlquileresActivos, generarBoletaCheckout, generarRegistroAsistencia } from '../../utils/reportesPdf';
 import { esAlquilerEmpresa, METODOS_PAGO } from '../../utils/formHelpers';
 import { chipStyle, quickDateBtn } from '../../constants/filterStyles';
@@ -12,7 +12,7 @@ import { chipStyle, quickDateBtn } from '../../constants/filterStyles';
 const PER_PAGE = 12;
 
 export default function Alquileres() {
-  const { alquileres, checkOut, refreshAlquiler, userRole, empresas } = useHotel();
+  const { alquileres, checkOut, refreshAlquiler, refetchAlquileres, userRole, empresas } = useHotel();
   const isAdmin = userRole === 'admin';
   const addToast = useToast();
 
@@ -35,6 +35,19 @@ export default function Alquileres() {
   const [editPopover, setEditPopover] = useState(null); // { id, descripcion, precioUnit, cantidad }
   const [cuentaMovimientos, setCuentaMovimientos] = useState([]); // MovimientoCajaResponseDTO[]
   const [editBasePrice, setEditBasePrice] = useState(null);
+
+  // Delete historial state (admin only)
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState(1);
+  const [deleteMode, setDeleteMode] = useState('todo');
+  const [deleteDesde, setDeleteDesde] = useState('');
+  const [deleteHasta, setDeleteHasta] = useState('');
+  const [deletePreview, setDeletePreview] = useState(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const DELETE_KEYWORD = deleteMode === 'todo' ? 'ELIMINAR TODO' : 'ELIMINAR RANGO';
+
   const [searchAlq, setSearchAlq] = useState('');
   const [sortDir, setSortDir] = useState('desc');
   const [filtrosOpen, setFiltrosOpen] = useState(false);
@@ -76,6 +89,49 @@ export default function Alquileres() {
   const paged = filteredSorted.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const handleTabChange = (t) => { setTab(t); setPage(1); };
+
+  const handleDeletePreview = async () => {
+    if (deleteMode === 'rango' && (!deleteDesde || !deleteHasta)) {
+      addToast('Seleccioná ambas fechas para el rango.', 'error');
+      return;
+    }
+    setDeletePreviewLoading(true);
+    try {
+      const preview = deleteMode === 'rango'
+        ? await previewDeleteHistorial(deleteDesde, deleteHasta)
+        : await previewDeleteHistorial();
+      if (preview.cantidad === 0) {
+        addToast('No hay alquileres finalizados en ese período.', 'warning');
+        return;
+      }
+      setDeletePreview(preview);
+      setDeleteConfirmText('');
+      setDeleteStep(2);
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al obtener preview.', 'error');
+    } finally {
+      setDeletePreviewLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmText !== DELETE_KEYWORD) return;
+    setDeleteSubmitting(true);
+    try {
+      const result = deleteMode === 'rango'
+        ? await deleteHistorial(deleteDesde, deleteHasta)
+        : await deleteHistorial();
+      addToast(`${result.eliminados} alquiler(es) eliminado(s).`, 'info');
+      setDeleteModal(false);
+      await refetchAlquileres();
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al eliminar el historial.', 'error');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
 
   const openCheckout = async (a) => {
     setCheckOutModal(a);
@@ -289,7 +345,18 @@ export default function Alquileres() {
 
   return (
     <div className="page-anim">
-      <PageHeader title="Alquileres" subtitle={`Rentas activas e historial · ${filtered.length}`} />
+      <PageHeader title="Alquileres" subtitle={`Rentas activas e historial · ${filtered.length}`}>
+        {isAdmin && tab === 'FINALIZADO' && finalizados.length > 0 && (
+          <Btn
+            variant="danger"
+            icon={<Trash2 size={14} />}
+            onClick={() => { setDeleteStep(1); setDeleteMode('todo'); setDeleteDesde(''); setDeleteHasta(''); setDeletePreview(null); setDeleteConfirmText(''); setDeleteModal(true); }}
+            title="Eliminar permanentemente alquileres finalizados"
+          >
+            Limpiar Historial
+          </Btn>
+        )}
+      </PageHeader>
 
       {/* Dashboard stats */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -844,6 +911,139 @@ export default function Alquileres() {
           </>
         )}
       </Modal>
+
+      {/* Delete historial modal (admin only) */}
+      {deleteModal && (
+        <Modal open={deleteModal} onOpenChange={(open) => !open && setDeleteModal(false)} title="Eliminar Historial de Alquileres" width={520}>
+          {deleteStep === 1 ? (
+            <>
+              <div style={{
+                display: 'flex', gap: 12, alignItems: 'flex-start',
+                background: 'var(--red-bg, #fbe9e7)', border: '1.5px solid var(--red, #e53935)',
+                borderRadius: 'var(--r-md, 8px)', padding: '12px 16px', marginBottom: 16,
+              }}>
+                <AlertTriangle size={22} color="var(--red, #e53935)" style={{ flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--red, #e53935)', marginBottom: 4 }}>Acción irreversible</div>
+                  <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                    Los alquileres eliminados <strong>no se pueden recuperar</strong>. Los movimientos de caja asociados perderán su referencia al alquiler.
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                  borderRadius: 'var(--r-md, 8px)', cursor: 'pointer',
+                  border: `1.5px solid ${deleteMode === 'todo' ? 'var(--red, #e53935)' : 'var(--border)'}`,
+                  background: deleteMode === 'todo' ? 'var(--red-bg, #fbe9e7)' : 'var(--surface)',
+                }}>
+                  <input type="radio" name="deleteModeAlq" value="todo" checked={deleteMode === 'todo'} onChange={() => setDeleteMode('todo')} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>Eliminar todo el historial</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Borra todos los alquileres finalizados</div>
+                  </div>
+                </label>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                  borderRadius: 'var(--r-md, 8px)', cursor: 'pointer',
+                  border: `1.5px solid ${deleteMode === 'rango' ? 'var(--red, #e53935)' : 'var(--border)'}`,
+                  background: deleteMode === 'rango' ? 'var(--red-bg, #fbe9e7)' : 'var(--surface)',
+                }}>
+                  <input type="radio" name="deleteModeAlq" value="rango" checked={deleteMode === 'rango'} onChange={() => setDeleteMode('rango')} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>Eliminar por rango de fechas</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Solo borra alquileres dentro de un período específico</div>
+                  </div>
+                </label>
+              </div>
+
+              {deleteMode === 'rango' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <Field label="Desde" required>
+                    <input type="date" value={deleteDesde} onChange={e => setDeleteDesde(e.target.value)} style={inputStyle} />
+                  </Field>
+                  <Field label="Hasta" required>
+                    <input type="date" value={deleteHasta} onChange={e => setDeleteHasta(e.target.value)} style={inputStyle} />
+                  </Field>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                <Btn variant="ghost" onClick={() => setDeleteModal(false)}>Cancelar</Btn>
+                <Btn
+                  variant="danger"
+                  onClick={handleDeletePreview}
+                  disabled={deletePreviewLoading || (deleteMode === 'rango' && (!deleteDesde || !deleteHasta))}
+                >
+                  {deletePreviewLoading ? 'Cargando...' : 'Ver resumen antes de eliminar'}
+                </Btn>
+              </div>
+            </>
+          ) : (
+            <>
+              {deletePreview && (
+                <div style={{
+                  background: 'var(--surface)', border: '1.5px solid var(--border)',
+                  borderRadius: 'var(--r-md, 8px)', padding: '16px', marginBottom: 16,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Resumen de eliminación</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Período</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{deletePreview.periodo}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Alquileres a eliminar</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, textAlign: 'right', color: 'var(--red, #e53935)' }}>{deletePreview.cantidad}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total facturado</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>S/ {Number(deletePreview.totalSubTotal).toFixed(2)}</div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{
+                background: 'var(--red-bg, #fbe9e7)',
+                border: '1.5px solid var(--red, #e53935)',
+                borderRadius: 'var(--r-md, 8px)',
+                padding: '10px 14px',
+                marginBottom: 16,
+                fontSize: 13,
+                color: 'var(--red, #e53935)',
+                fontWeight: 600,
+                textAlign: 'center',
+              }}>
+                Esta acción no se puede deshacer
+              </div>
+
+              <Field label={<>Para confirmar, escribí <code style={{ background: 'var(--bg)', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>{DELETE_KEYWORD}</code></>} required>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value.toUpperCase())}
+                  placeholder={DELETE_KEYWORD}
+                  style={{
+                    ...inputStyle,
+                    borderColor: deleteConfirmText === DELETE_KEYWORD ? 'var(--red, #e53935)' : undefined,
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                  }}
+                  autoComplete="off"
+                />
+              </Field>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+                <Btn variant="ghost" onClick={() => { setDeleteStep(1); setDeleteConfirmText(''); }}>← Volver</Btn>
+                <Btn
+                  variant="danger"
+                  icon={<Trash2 size={14} />}
+                  onClick={handleDeleteConfirm}
+                  disabled={deleteConfirmText !== DELETE_KEYWORD || deleteSubmitting}
+                >
+                  {deleteSubmitting ? 'Eliminando...' : 'Eliminar'}
+                </Btn>
+              </div>
+            </>
+          )}
+        </Modal>
+      )}
 
     </div >
   );

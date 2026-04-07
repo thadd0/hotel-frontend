@@ -309,6 +309,23 @@ export function HotelProvider({ children }) {
     }
   }, []);
 
+  const refetchAlquileres = useCallback(async () => {
+    try {
+      const currentRole = deriveAppRole(token);
+      const [activosRes, historialRes] = await Promise.allSettled([
+        getAlquileresActivos(),
+        currentRole === 'admin' ? getAlquileresHistorial() : Promise.resolve([]),
+      ]);
+      const merged = [
+        ...(activosRes.status === 'fulfilled' && Array.isArray(activosRes.value) ? activosRes.value : []),
+        ...(historialRes.status === 'fulfilled' && Array.isArray(historialRes.value) ? historialRes.value : []),
+      ];
+      setAlquileres(merged);
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('Error al refrescar alquileres:', err);
+    }
+  }, [token]);
+
   // ── Derived: unique pisos from habitaciones ────────────────────────
   const pisos = [...new Set(habitaciones.map(h => h.piso))].sort((a, b) => a - b);
 
@@ -334,7 +351,7 @@ export function HotelProvider({ children }) {
       clientes, addCliente, updateCliente, deleteCliente,
 
       // Alquileres (check-in / check-out)
-      alquileres, checkIn, checkOut, refreshAlquiler,
+      alquileres, checkIn, checkOut, refreshAlquiler, refetchAlquileres,
 
       // Caja
       movimientosCaja,
