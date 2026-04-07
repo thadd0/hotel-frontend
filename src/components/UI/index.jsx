@@ -28,7 +28,7 @@ const BTN_SIZES = {
   lg: { padding:'10px 20px', fontSize:'14px',  height:'44px', borderRadius:'var(--r-md)' },
 };
 
-export function Btn({ children, variant='primary', size='md', icon, onClick, type='button', disabled, full }) {
+export function Btn({ children, variant='primary', size='md', icon, onClick, type='button', disabled, full, title, style: styleProp }) {
   const v = BTN_VARIANTS[variant];
   const s = BTN_SIZES[size];
   return (
@@ -36,8 +36,9 @@ export function Btn({ children, variant='primary', size='md', icon, onClick, typ
       type={type}
       disabled={disabled}
       onClick={onClick}
+      title={title}
       onMouseEnter={e => { if(!disabled) e.currentTarget.style.background = v.hoverBg; }}
-      onMouseLeave={e => { e.currentTarget.style.background = v.bg; }}
+      onMouseLeave={e => { e.currentTarget.style.background = styleProp?.background ?? v.bg; }}
       style={{
         display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6,
         fontFamily:'inherit', fontWeight:600, cursor: disabled?'not-allowed':'pointer',
@@ -45,6 +46,7 @@ export function Btn({ children, variant='primary', size='md', icon, onClick, typ
         opacity: disabled ? .55 : 1, transition:'all .15s ease',
         width: full ? '100%' : undefined,
         ...s,
+        ...styleProp,
       }}
     >
       {icon}{children}

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, Field, Modal, EmptyState, Pagination, Card, RSelect, SearchInput, inputStyle, tdStyle, PageHeader, useToast } from '../../components/UI/index.jsx';
-import { DollarSign, TrendingUp, TrendingDown, Plus, FileText, Download, Pencil, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Clock } from 'lucide-react';
-import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy, cobrarMovimientoEmpresa, cobrarLoteEmpresa } from '../../api/caja';
+import { DollarSign, TrendingUp, TrendingDown, Plus, FileText, Download, Pencil, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Clock, Trash2, AlertTriangle } from 'lucide-react';
+import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy, cobrarMovimientoEmpresa, cobrarLoteEmpresa, deleteMovimientos, previewDeleteMovimientos } from '../../api/caja';
 import { descargarReporteCajaMovimientos, generarCierreCaja, generarReporteEmpresa } from '../../utils/reportesPdf';
 import { sanitizeDecimal, METODOS_PAGO } from '../../utils/formHelpers';
 import { chipStyle, quickDateBtn } from '../../constants/filterStyles';
@@ -128,6 +128,18 @@ export default function Caja() {
   const [cobrarLoteModal, setCobrarLoteModal] = useState(false);
   const [cobrarLoteMetodo, setCobrarLoteMetodo] = useState('EFECTIVO');
   const [cobrarLoteSubmitting, setCobrarLoteSubmitting] = useState(false);
+
+  // Eliminar caja state (admin only) — 2-step flow
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState(1);
+  const [deleteMode, setDeleteMode] = useState('todo'); // 'todo' | 'rango'
+  const [deleteDesde, setDeleteDesde] = useState('');
+  const [deleteHasta, setDeleteHasta] = useState('');
+  const [deletePreview, setDeletePreview] = useState(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const DELETE_KEYWORD = deleteMode === 'todo' ? 'ELIMINAR TODO' : 'ELIMINAR RANGO';
 
   const fetchResumen = useCallback(async () => {
     setLoading(true);
@@ -280,6 +292,49 @@ export default function Caja() {
     }
   };
 
+  const handleDeletePreview = async () => {
+    if (deleteMode === 'rango' && (!deleteDesde || !deleteHasta)) {
+      addToast('Seleccioná ambas fechas para el rango.', 'error');
+      return;
+    }
+    setDeletePreviewLoading(true);
+    try {
+      const preview = deleteMode === 'rango'
+        ? await previewDeleteMovimientos(deleteDesde, deleteHasta)
+        : await previewDeleteMovimientos();
+      if (preview.cantidad === 0) {
+        addToast('No hay movimientos en ese período.', 'warning');
+        return;
+      }
+      setDeletePreview(preview);
+      setDeleteConfirmText('');
+      setDeleteStep(2);
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al obtener preview.', 'error');
+    } finally {
+      setDeletePreviewLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirmText !== DELETE_KEYWORD) return;
+    setDeleteSubmitting(true);
+    try {
+      const result = deleteMode === 'rango'
+        ? await deleteMovimientos(deleteDesde, deleteHasta)
+        : await deleteMovimientos();
+      addToast(`${result.eliminados} movimiento(s) eliminado(s).`, 'info');
+      setDeleteModal(false);
+      await fetchResumen();
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al eliminar los movimientos.', 'error');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
   const openModal = (tipo) => {
     setModalTipo(tipo);
     setForm({ monto: '', concepto: '', metodoPago: 'EFECTIVO' });
@@ -329,6 +384,16 @@ export default function Caja() {
       <PageHeader title="Caja / Movimientos" subtitle={`Registra ingresos, egresos y controla saldo · ${movimientosFiltrados.length}`}>
           <Btn icon={<Plus size={14} />} onClick={() => openModal('INGRESO_EXTRA')} title="Registrar ingresos fuera de alquileres (servicios, depósitos, etc.)">Ingreso Adicional</Btn>
           <Btn icon={<TrendingDown size={14} />} variant="ghost" onClick={() => openModal('EGRESO')}>Registrar Egreso</Btn>
+          {isAdmin && (
+            <Btn
+              variant="danger"
+              icon={<Trash2 size={14} />}
+              onClick={() => { setDeleteStep(1); setDeleteMode('todo'); setDeleteDesde(''); setDeleteHasta(''); setDeletePreview(null); setDeleteConfirmText(''); setDeleteModal(true); }}
+              title="Eliminar permanentemente todos los movimientos de caja"
+            >
+              Limpiar Caja
+            </Btn>
+          )}
       </PageHeader>
 
       {/* Summary Cards — per tab */}
@@ -813,6 +878,150 @@ export default function Caja() {
           </Btn>
         </div>
       </Modal>
+      {/* ⚠️ Limpiar caja modal — admin only, 2-step flow */}
+      {isAdmin && (
+        <Modal
+          open={deleteModal}
+          onOpenChange={(open) => { if (!open) setDeleteModal(false); }}
+          title={deleteStep === 1 ? '⚠️ Limpiar movimientos de caja' : '⚠️ Confirmar eliminación'}
+          width={500}
+        >
+          {deleteStep === 1 ? (
+            <>
+              <div style={{
+                background: 'var(--red-bg, #fbe9e7)',
+                border: '1.5px solid var(--red, #e53935)',
+                borderRadius: 'var(--r-md, 8px)',
+                padding: '14px 16px',
+                marginBottom: 18,
+                display: 'flex',
+                gap: 12,
+                alignItems: 'flex-start',
+              }}>
+                <AlertTriangle size={22} color="var(--red, #e53935)" style={{ flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--red, #e53935)', marginBottom: 4 }}>Acción irreversible</div>
+                  <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                    Los registros eliminados <strong>no se pueden recuperar</strong>. Revisá el resumen antes de confirmar.
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                  borderRadius: 'var(--r-md, 8px)', cursor: 'pointer',
+                  border: `1.5px solid ${deleteMode === 'todo' ? 'var(--red, #e53935)' : 'var(--border)'}`,
+                  background: deleteMode === 'todo' ? 'var(--red-bg, #fbe9e7)' : 'var(--surface)',
+                }}>
+                  <input type="radio" name="deleteMode" value="todo" checked={deleteMode === 'todo'} onChange={() => setDeleteMode('todo')} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>Eliminar todo el historial</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Borra todos los ingresos, egresos y cuentas pendientes</div>
+                  </div>
+                </label>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                  borderRadius: 'var(--r-md, 8px)', cursor: 'pointer',
+                  border: `1.5px solid ${deleteMode === 'rango' ? 'var(--red, #e53935)' : 'var(--border)'}`,
+                  background: deleteMode === 'rango' ? 'var(--red-bg, #fbe9e7)' : 'var(--surface)',
+                }}>
+                  <input type="radio" name="deleteMode" value="rango" checked={deleteMode === 'rango'} onChange={() => setDeleteMode('rango')} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>Eliminar por rango de fechas</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Solo borra movimientos dentro de un período específico</div>
+                  </div>
+                </label>
+              </div>
+
+              {deleteMode === 'rango' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <Field label="Desde" required>
+                    <input type="date" value={deleteDesde} onChange={e => setDeleteDesde(e.target.value)} style={inputStyle} />
+                  </Field>
+                  <Field label="Hasta" required>
+                    <input type="date" value={deleteHasta} onChange={e => setDeleteHasta(e.target.value)} style={inputStyle} />
+                  </Field>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                <Btn variant="ghost" onClick={() => setDeleteModal(false)}>Cancelar</Btn>
+                <Btn
+                  variant="danger"
+                  onClick={handleDeletePreview}
+                  disabled={deletePreviewLoading || (deleteMode === 'rango' && (!deleteDesde || !deleteHasta))}
+                >
+                  {deletePreviewLoading ? 'Cargando...' : 'Ver resumen antes de eliminar'}
+                </Btn>
+              </div>
+            </>
+          ) : (
+            <>
+              {deletePreview && (
+                <div style={{
+                  background: 'var(--surface)', border: '1.5px solid var(--border)',
+                  borderRadius: 'var(--r-md, 8px)', padding: '16px', marginBottom: 16,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Resumen de eliminación</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Período</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{deletePreview.periodo}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Movimientos a eliminar</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, textAlign: 'right', color: 'var(--red, #e53935)' }}>{deletePreview.cantidad}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total ingresos</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', color: 'var(--green, #43a047)' }}>S/ {Number(deletePreview.totalIngresos).toFixed(2)}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total egresos</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', color: 'var(--red, #e53935)' }}>S/ {Number(deletePreview.totalEgresos).toFixed(2)}</div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{
+                background: 'var(--red-bg, #fbe9e7)',
+                border: '1.5px solid var(--red, #e53935)',
+                borderRadius: 'var(--r-md, 8px)',
+                padding: '10px 14px',
+                marginBottom: 16,
+                fontSize: 13,
+                color: 'var(--red, #e53935)',
+                fontWeight: 600,
+                textAlign: 'center',
+              }}>
+                Esta acción no se puede deshacer
+              </div>
+
+              <Field label={<>Para confirmar, escribí <code style={{ background: 'var(--bg)', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>{DELETE_KEYWORD}</code></>} required>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value.toUpperCase())}
+                  placeholder={DELETE_KEYWORD}
+                  style={{
+                    ...inputStyle,
+                    borderColor: deleteConfirmText === DELETE_KEYWORD ? 'var(--red, #e53935)' : undefined,
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                  }}
+                  autoComplete="off"
+                />
+              </Field>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+                <Btn variant="ghost" onClick={() => { setDeleteStep(1); setDeleteConfirmText(''); }}>← Volver</Btn>
+                <Btn
+                  variant="danger"
+                  icon={<Trash2 size={14} />}
+                  onClick={handleDeleteConfirm}
+                  disabled={deleteConfirmText !== DELETE_KEYWORD || deleteSubmitting}
+                >
+                  {deleteSubmitting ? 'Eliminando...' : 'Eliminar'}
+                </Btn>
+              </div>
+            </>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

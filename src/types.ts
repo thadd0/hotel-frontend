@@ -54,6 +54,8 @@ export type HabitacionDTO = {
 export type TarifaDTO = {
   id: number;
   precio: number;
+  tipoHabitacionId: number;
+  tipoAlquilerId: number;
   tipoHabitacion: TipoHabitacionDTO;
   tipoAlquiler: TipoAlquilerDTO;
 };

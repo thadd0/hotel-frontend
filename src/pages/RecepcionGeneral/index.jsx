@@ -470,7 +470,7 @@ export default function RecepcionGeneral() {
               {Number(checkOutTarget.totalPagadoCaja || 0) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4, color: 'var(--green, #43a047)' }}>
                   <span>Ya pagado en caja</span>
-                  <span>S/ {Number(checkOutTarget.totalPagadoCaja || 0).toFixed(2)}</span>
+                  <span>− S/ {Number(checkOutTarget.totalPagadoCaja || 0).toFixed(2)}</span>
                 </div>
               )}
               {checkoutLoading && (

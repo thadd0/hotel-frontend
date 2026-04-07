@@ -102,6 +102,10 @@ export default function GenericCRUD({
         payload[f.key] = enabled && String(form[f.key] ?? '').trim() ? form[f.key] : null;
         delete payload[`${f.key}Enabled`];
       }
+      if (f.type === 'number' && payload[f.key] !== '' && payload[f.key] !== null && payload[f.key] !== undefined) {
+        const num = Number(payload[f.key]);
+        if (!isNaN(num)) payload[f.key] = num;
+      }
     });
     setSubmitting(true);
     try {

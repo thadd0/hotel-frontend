@@ -56,3 +56,21 @@ export async function cobrarLoteEmpresa(
     params: { empresaId, desde, hasta, metodoPago },
   });
 }
+
+export async function deleteAllMovimientos(): Promise<void> {
+  return apiFetch('/api/recepcion/caja', { method: 'DELETE' });
+}
+
+export async function deleteMovimientos(desde?: string, hasta?: string): Promise<{ message: string; eliminados: number }> {
+  const params: Record<string, string> = {};
+  if (desde) params.desde = desde;
+  if (hasta) params.hasta = hasta;
+  return apiFetch('/api/recepcion/caja', { method: 'DELETE', params });
+}
+
+export async function previewDeleteMovimientos(desde?: string, hasta?: string): Promise<{ cantidad: number; totalIngresos: number; totalEgresos: number; periodo: string }> {
+  const params: Record<string, string> = {};
+  if (desde) params.desde = desde;
+  if (hasta) params.hasta = hasta;
+  return apiFetch('/api/recepcion/caja/preview-eliminacion', { params });
+}

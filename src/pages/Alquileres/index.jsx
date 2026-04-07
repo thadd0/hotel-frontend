@@ -268,7 +268,7 @@ export default function Alquileres() {
     }
   };
 
-  const alquilerHeaders = ['Hab.', 'Cliente', 'Tipo', 'Ingreso', 'Salida Prev.', 'Saldo', ''];
+  const alquilerHeaders = ['Hab.', 'Cliente', 'Tipo', 'Ingreso', tab === 'FINALIZADO' ? 'Salida Real' : 'Salida Prev.', 'Saldo', ''];
 
   // Dashboard stats
   const activos = alquileres.filter(a => a.estadoAlquiler === 'ACTIVO');
@@ -491,7 +491,7 @@ export default function Alquileres() {
                   </span>
                 </td>
                 <td style={tdStyle}>{formatDate(a.fechaIngreso)}</td>
-                <td style={tdStyle}>{formatDate(a.fechaPrevista)}</td>
+                <td style={tdStyle}>{formatDate(tab === 'FINALIZADO' ? (a.fechaSalida || a.fechaPrevista) : a.fechaPrevista)}</td>
                 <td style={tdStyle}>
                   {puedeVerMontos ? (
                     <span style={{
@@ -511,7 +511,7 @@ export default function Alquileres() {
                       Gestionar
                     </Btn>
                     {a.estadoAlquiler === 'ACTIVO' && (
-                      <Btn style={{ fontSize: 12, padding: '4px 10px', background: 'var(--red, #e53935)', color: '#fff', border: 'none' }}
+                      <Btn variant="danger" style={{ fontSize: 12, padding: '4px 10px' }}
                         onClick={() => openCheckout(a)}
                         icon={<LogOut size={13} />}>
                         Check-out
@@ -551,7 +551,7 @@ export default function Alquileres() {
               {Number(checkOutModal.totalPagadoCaja || 0) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4, color: 'var(--green, #43a047)' }}>
                   <span title="Total acumulado de pagos ya registrados en caja para este alquiler">Ya pagado en caja</span>
-                  <span>S/ {Number(checkOutModal.totalPagadoCaja || 0).toFixed(2)}</span>
+                  <span>− S/ {Number(checkOutModal.totalPagadoCaja || 0).toFixed(2)}</span>
                 </div>
               )}
               {checkoutLoading && (
