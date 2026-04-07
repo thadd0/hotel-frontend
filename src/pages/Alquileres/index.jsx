@@ -211,8 +211,12 @@ export default function Alquileres() {
     try {
       const saved = await postCuenta(cuentaModal.id, payload);
       setCuentaItems(prev => [...prev, saved]);
-      refreshAlquiler(cuentaModal.id);
-      setCuentaModal(prev => prev ? { ...prev, pagoPendiente: parseFloat(prev.pagoPendiente) + saved.subTotal } : prev);
+      const updatedAlquiler = await refreshAlquiler(cuentaModal.id);
+      if (updatedAlquiler) {
+        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: updatedAlquiler.pagoPendiente, totalPagadoCaja: updatedAlquiler.totalPagadoCaja } : prev);
+      } else {
+        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: parseFloat(prev.pagoPendiente) + saved.subTotal } : prev);
+      }
       addToast('Consumo agregado', 'success');
     } catch (error) {
       const msg = error?.response?.data?.message;
@@ -241,7 +245,10 @@ export default function Alquileres() {
     try {
       const updated = await putCuenta(cuentaModal.id, id, payload);
       setCuentaItems(prev => prev.map(c => c.id === id ? updated : c));
-      refreshAlquiler(cuentaModal.id);
+      const updatedAlquiler = await refreshAlquiler(cuentaModal.id);
+      if (updatedAlquiler) {
+        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: updatedAlquiler.pagoPendiente, totalPagadoCaja: updatedAlquiler.totalPagadoCaja } : prev);
+      }
       addToast('Precio actualizado', 'success');
     } catch (error) {
       const msg = error?.response?.data?.message;
