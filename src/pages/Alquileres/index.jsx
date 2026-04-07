@@ -679,6 +679,7 @@ export default function Alquileres() {
           const basePrice = parseFloat(cuentaModal.subTotal || 0);
           const totalConsumos = cuentaItems.reduce((sum, c) => sum + c.subTotal, 0);
           const totalFactura = basePrice + totalConsumos;
+          const totalPagado = parseFloat(cuentaModal.totalPagadoCaja || 0);
           const saldoPendiente = parseFloat(cuentaModal.pagoPendiente || 0);
           return (
             <>
