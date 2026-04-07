@@ -96,7 +96,7 @@ export type CuentaAlquilerDTO = {
 
 export type MovimientoCajaResponseDTO = {
   id: number;
-  tipo: 'INGRESO' | 'INGRESO_EXTRA' | 'EGRESO';
+  tipo: 'INGRESO' | 'INGRESO_EXTRA' | 'EGRESO' | 'PENDIENTE';
   monto: number;
   metodoPago: 'YAPE' | 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'PLIN';
   concepto: string;
@@ -105,6 +105,7 @@ export type MovimientoCajaResponseDTO = {
   numeroHabitacion?: string;
   nombreCliente?: string;
   nombreEmpresa?: string;
+  alquilerId?: number;
 };
 
 export type ResumenCajaDTO = {

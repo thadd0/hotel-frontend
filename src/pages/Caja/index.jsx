@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useHotel } from '../../context/HotelContext';
 import { Table, Btn, Field, Modal, EmptyState, Pagination, Card, RSelect, SearchInput, inputStyle, tdStyle, PageHeader, useToast } from '../../components/UI/index.jsx';
-import { DollarSign, TrendingUp, TrendingDown, Plus, FileText, Download, Pencil, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Clock, Trash2, AlertTriangle } from 'lucide-react';
-import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy, cobrarMovimientoEmpresa, cobrarLoteEmpresa, deleteMovimientos, previewDeleteMovimientos } from '../../api/caja';
+import { DollarSign, TrendingUp, TrendingDown, Plus, FileText, Download, Pencil, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Clock, Trash2, AlertTriangle, ClipboardList, Save } from 'lucide-react';
+import { getMovimientosRango, postEgreso, postIngresoExtra, patchMovimientoMonto, getResumenHoy, cobrarMovimientoEmpresa, cobrarLoteEmpresaPorIds, deleteMovimientos, previewDeleteMovimientos } from '../../api/caja';
+import { getCuentasByAlquiler, putCuenta } from '../../api/consumos';
+import { getAlquiler, patchAlquilerMontos } from '../../api/alquileres';
 import { descargarReporteCajaMovimientos, generarCierreCaja, generarReporteEmpresa } from '../../utils/reportesPdf';
 import { sanitizeDecimal, METODOS_PAGO } from '../../utils/formHelpers';
 import { chipStyle, quickDateBtn } from '../../constants/filterStyles';
@@ -128,6 +130,14 @@ export default function Caja() {
   const [cobrarLoteModal, setCobrarLoteModal] = useState(false);
   const [cobrarLoteMetodo, setCobrarLoteMetodo] = useState('EFECTIVO');
   const [cobrarLoteSubmitting, setCobrarLoteSubmitting] = useState(false);
+
+  // Gestionar cuenta empresa modal (admin: edita precios; recep: solo ve consumos)
+  const [gestionarModal, setGestionarModal] = useState(null);
+  const [gestionarCuentas, setGestionarCuentas] = useState([]);
+  const [gestionarLoading, setGestionarLoading] = useState(false);
+  const [gestionarPrecios, setGestionarPrecios] = useState({});
+  const [gestionarBasePrice, setGestionarBasePrice] = useState('');
+  const [gestionarSubmitting, setGestionarSubmitting] = useState(false);
 
   // Eliminar caja state (admin only) — 2-step flow
   const [deleteModal, setDeleteModal] = useState(false);
@@ -280,7 +290,7 @@ export default function Caja() {
     setCobrarLoteSubmitting(true);
     try {
       const ids = cuentasEmpresaPendientes.map((mov) => mov.id);
-      await cobrarLoteEmpresa(ids, cobrarLoteMetodo);
+      await cobrarLoteEmpresaPorIds(ids, cobrarLoteMetodo);
       addToast(`${cuentasEmpresaPendientes.length} movimiento(s) cobrados correctamente.`, 'success');
       setCobrarLoteModal(false);
       await fetchResumen();
@@ -340,6 +350,100 @@ export default function Caja() {
     setForm({ monto: '', concepto: '', metodoPago: 'EFECTIVO' });
     setErrors({});
     setModalOpen(true);
+  };
+
+  const openGestionar = async (movimiento) => {
+    if (!movimiento.alquilerId) {
+      addToast('Este movimiento no tiene alquiler asociado', 'error');
+      return;
+    }
+    setGestionarModal(movimiento);
+    setGestionarCuentas([]);
+    setGestionarPrecios({});
+    setGestionarBasePrice('');
+    setGestionarLoading(true);
+    try {
+      const [alqRes, cuentasRes] = await Promise.allSettled([
+        getAlquiler(movimiento.alquilerId),
+        getCuentasByAlquiler(movimiento.alquilerId),
+      ]);
+      const alq = alqRes.status === 'fulfilled' ? alqRes.value : null;
+      const cuentas = cuentasRes.status === 'fulfilled' ? cuentasRes.value : [];
+      setGestionarCuentas(cuentas);
+      const preciosInit = {};
+      cuentas.forEach(c => { preciosInit[c.id] = String(parseFloat(c.precioUnit || 0).toFixed(2)); });
+      setGestionarPrecios(preciosInit);
+      if (alq) setGestionarBasePrice(String(parseFloat(alq.subTotal || 0).toFixed(2)));
+    } catch {
+      addToast('Error al cargar detalles del alquiler', 'error');
+    } finally {
+      setGestionarLoading(false);
+    }
+  };
+
+  const handleGuardarPrecios = async () => {
+    if (!gestionarModal?.alquilerId) return;
+    setGestionarSubmitting(true);
+    try {
+      const alquilerId = gestionarModal.alquilerId;
+      const updatedCuentas = await Promise.all(
+        gestionarCuentas.map(c =>
+          putCuenta(alquilerId, c.id, {
+            descripcion: c.descripcion,
+            precioUnit: parseFloat(gestionarPrecios[c.id] || '0'),
+            cantidad: c.cantidad,
+            estado: c.estado,
+          })
+        )
+      );
+      setGestionarCuentas(updatedCuentas);
+      const newBase = parseFloat(gestionarBasePrice || '0');
+      const totalConsumos = updatedCuentas.reduce((s, c) => s + (parseFloat(c.subTotal) || 0), 0);
+      const newTotal = newBase + totalConsumos;
+      await patchAlquilerMontos(alquilerId, { subTotal: newBase, pagoPendiente: newTotal });
+      await patchMovimientoMonto(gestionarModal.id, newTotal);
+      setGestionarModal(prev => prev ? { ...prev, monto: newTotal } : prev);
+      addToast('Precios guardados correctamente', 'success');
+      await fetchResumen();
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al guardar precios', 'error');
+    } finally {
+      setGestionarSubmitting(false);
+    }
+  };
+
+  const handleGuardarYCobrar = async () => {
+    if (!gestionarModal?.alquilerId) return;
+    setGestionarSubmitting(true);
+    try {
+      const alquilerId = gestionarModal.alquilerId;
+      const updatedCuentas = await Promise.all(
+        gestionarCuentas.map(c =>
+          putCuenta(alquilerId, c.id, {
+            descripcion: c.descripcion,
+            precioUnit: parseFloat(gestionarPrecios[c.id] || '0'),
+            cantidad: c.cantidad,
+            estado: c.estado,
+          })
+        )
+      );
+      const newBase = parseFloat(gestionarBasePrice || '0');
+      const totalConsumos = updatedCuentas.reduce((s, c) => s + (parseFloat(c.subTotal) || 0), 0);
+      const newTotal = newBase + totalConsumos;
+      await patchAlquilerMontos(alquilerId, { subTotal: newBase, pagoPendiente: newTotal });
+      await patchMovimientoMonto(gestionarModal.id, newTotal);
+      await fetchResumen();
+      const movActualizado = { ...gestionarModal, monto: newTotal };
+      setGestionarModal(null);
+      setCobrarModal(movActualizado);
+      setCobrarMetodo('EFECTIVO');
+    } catch (error) {
+      const msg = error?.response?.data?.message;
+      addToast(msg || 'Error al procesar', 'error');
+    } finally {
+      setGestionarSubmitting(false);
+    }
   };
 
   const handleMontoChange = (rawValue) => {
@@ -407,7 +511,7 @@ export default function Caja() {
       )}
       {activeTab === 'cuentas_empresa' && (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
-        <SummaryCard label="Total Pendiente" value={totalPendienteEmpresas} color="#e65100" bg="#fff3e0" icon={<Clock size={16} />} />
+        {isAdmin && <SummaryCard label="Total Pendiente" value={totalPendienteEmpresas} color="#e65100" bg="#fff3e0" icon={<Clock size={16} />} />}
         <SummaryCard label="Empresas con deuda" value={empresasConDeuda} isCount color="var(--text-2)" bg="var(--surface-2, #f5f5f5)" icon={<FileText size={16} />} />
       </div>
       )}
@@ -714,7 +818,7 @@ export default function Caja() {
               <>
               <Table headers={isAdmin
                 ? ['Fecha checkout', 'Empresa', 'Cliente', 'Habitación', 'Monto', '']
-                : ['Fecha checkout', 'Empresa', 'Cliente', 'Habitación', 'Monto']
+                : ['Fecha checkout', 'Empresa', 'Cliente', 'Habitación', '']
               }>
                 {cuentasEmpresaPendientes.slice((pageEmpresa - 1) * PER_PAGE, pageEmpresa * PER_PAGE).map(m => (
                   <tr key={m.id}
@@ -726,15 +830,27 @@ export default function Caja() {
                     <td style={{ ...tdStyle, fontWeight: 600 }}>{m.nombreEmpresa || '—'}</td>
                     <td style={tdStyle}>{m.nombreCliente || '—'}</td>
                     <td style={tdStyle}>{m.numeroHabitacion || '—'}</td>
-                    <td style={{ ...tdStyle, fontWeight: 700, color: '#e65100' }}>S/ {parseFloat(m.monto).toFixed(2)}</td>
                     {isAdmin && (
-                      <td style={tdStyle}>
-                        <Btn style={{ fontSize: 11, padding: '3px 8px' }}
-                          onClick={() => { setCobrarModal(m); setCobrarMetodo('EFECTIVO'); }}>
-                          Registrar Pago
-                        </Btn>
+                      <td style={{ ...tdStyle, fontWeight: 700, color: '#e65100' }}>
+                        S/ {parseFloat(m.monto).toFixed(2)}
                       </td>
                     )}
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <Btn variant="ghost" style={{ fontSize: 11, padding: '3px 8px' }}
+                          icon={<ClipboardList size={12} />}
+                          onClick={() => openGestionar(m)}
+                          title={isAdmin ? 'Ver consumos y asignar precios' : 'Ver consumos del alquiler'}>
+                          {isAdmin ? 'Gestionar' : 'Ver consumos'}
+                        </Btn>
+                        {isAdmin && (
+                          <Btn style={{ fontSize: 11, padding: '3px 8px' }}
+                            onClick={() => { setCobrarModal(m); setCobrarMetodo('EFECTIVO'); }}>
+                            Cobrar
+                          </Btn>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </Table>
@@ -746,6 +862,151 @@ export default function Caja() {
           </Card>
         </>
       )}
+
+      {/* Gestionar cuenta empresa — admin edita precios, recep solo ve consumos */}
+      <Modal
+        open={!!gestionarModal}
+        onOpenChange={(open) => !open && setGestionarModal(null)}
+        title={isAdmin ? 'Gestionar cuenta empresa' : 'Consumos del alquiler'}
+        width={580}
+      >
+        {gestionarModal && (() => {
+          const totalConsumosEdit = gestionarCuentas.reduce(
+            (s, c) => s + parseFloat(gestionarPrecios[c.id] || '0') * (c.cantidad || 1), 0
+          );
+          const baseNum = parseFloat(gestionarBasePrice || '0');
+          const nuevoTotal = baseNum + totalConsumosEdit;
+          const thSt = { padding: '6px 8px', textAlign: 'left', fontWeight: 700, fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', borderBottom: '2px solid var(--border)' };
+          const tdSt = { padding: '8px 8px', borderBottom: '1px solid var(--border)', fontSize: 13 };
+          return (
+            <>
+              {/* Info del alquiler */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginBottom: 14, padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.4px', marginBottom: 2 }}>Empresa</div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{gestionarModal.nombreEmpresa || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.4px', marginBottom: 2 }}>Cliente</div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{gestionarModal.nombreCliente || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.4px', marginBottom: 2 }}>Habitación</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)' }}>{gestionarModal.numeroHabitacion || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.4px', marginBottom: 2 }}>Checkout</div>
+                  <div style={{ fontSize: 12 }}>{new Date(gestionarModal.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+                </div>
+              </div>
+
+              {gestionarLoading ? (
+                <div style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Cargando consumos...</div>
+              ) : (
+                <>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 2 }}>
+                    <thead>
+                      <tr>
+                        <th style={thSt}>Descripción</th>
+                        <th style={{ ...thSt, textAlign: 'center' }}>Cant.</th>
+                        {isAdmin && <th style={{ ...thSt, textAlign: 'right' }}>P. Unit</th>}
+                        {isAdmin && <th style={{ ...thSt, textAlign: 'right' }}>Total</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Fila base — alojamiento */}
+                      <tr style={{ background: 'var(--surface-2, #fafafa)' }}>
+                        <td style={{ ...tdSt, fontWeight: 600 }}>Alojamiento</td>
+                        <td style={{ ...tdSt, textAlign: 'center' }}>1</td>
+                        {isAdmin && (
+                          <td style={{ ...tdSt, textAlign: 'right' }}>
+                            <input
+                              type="number" min="0" step="0.01"
+                              value={gestionarBasePrice}
+                              onChange={e => setGestionarBasePrice(e.target.value)}
+                              style={{ width: 90, textAlign: 'right', padding: '3px 6px', fontSize: 13, border: '1.5px solid var(--accent)', borderRadius: 6, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+                            />
+                          </td>
+                        )}
+                        {isAdmin && (
+                          <td style={{ ...tdSt, textAlign: 'right', fontWeight: 600 }}>S/ {baseNum.toFixed(2)}</td>
+                        )}
+                      </tr>
+                      {/* Filas consumos */}
+                      {gestionarCuentas.length === 0 ? (
+                        <tr>
+                          <td colSpan={isAdmin ? 4 : 2} style={{ ...tdSt, textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            Sin consumos adicionales registrados
+                          </td>
+                        </tr>
+                      ) : gestionarCuentas.map(c => (
+                        <tr key={c.id}>
+                          <td style={tdSt}>{c.descripcion}</td>
+                          <td style={{ ...tdSt, textAlign: 'center' }}>{c.cantidad}</td>
+                          {isAdmin && (
+                            <td style={{ ...tdSt, textAlign: 'right' }}>
+                              <input
+                                type="number" min="0" step="0.50"
+                                value={gestionarPrecios[c.id] ?? ''}
+                                onChange={e => setGestionarPrecios(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                style={{ width: 90, textAlign: 'right', padding: '3px 6px', fontSize: 13, border: '1.5px solid var(--accent)', borderRadius: 6, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+                              />
+                            </td>
+                          )}
+                          {isAdmin && (
+                            <td style={{ ...tdSt, textAlign: 'right', fontWeight: 600 }}>
+                              S/ {(parseFloat(gestionarPrecios[c.id] || '0') * c.cantidad).toFixed(2)}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Resumen total — solo admin */}
+                  {isAdmin && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, padding: '10px 8px 12px', borderTop: '2px solid var(--border)', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', width: 230, fontSize: 13, color: 'var(--text-muted)' }}>
+                        <span>Alojamiento</span><span>S/ {baseNum.toFixed(2)}</span>
+                      </div>
+                      {gestionarCuentas.length > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: 230, fontSize: 13, color: 'var(--text-muted)' }}>
+                          <span>Consumos</span><span>S/ {totalConsumosEdit.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', width: 230, fontSize: 15, fontWeight: 800, borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 3, color: '#e65100' }}>
+                        <span>Total a cobrar</span><span>S/ {nuevoTotal.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Aviso recepcionista */}
+                  {!isAdmin && (
+                    <div style={{ padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)', borderLeft: '3px solid var(--accent)', marginBottom: 12 }}>
+                      Los precios son asignados por administración. El cobro se gestiona desde allí.
+                    </div>
+                  )}
+
+                  {/* Acciones */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                    <Btn variant="ghost" onClick={() => setGestionarModal(null)}>Cerrar</Btn>
+                    {isAdmin && (
+                      <>
+                        <Btn variant="ghost" icon={<Save size={13} />} onClick={handleGuardarPrecios} disabled={gestionarSubmitting}>
+                          {gestionarSubmitting ? 'Guardando...' : 'Guardar precios'}
+                        </Btn>
+                        <Btn icon={<TrendingUp size={13} />} onClick={handleGuardarYCobrar} disabled={gestionarSubmitting}>
+                          {gestionarSubmitting ? 'Procesando...' : `Guardar y cobrar · S/ ${nuevoTotal.toFixed(2)}`}
+                        </Btn>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          );
+        })()}
+      </Modal>
 
       {/* Modal for Egreso / Ingreso Extra  — payload matches GastoRequestDTO */}
       <Modal open={modalOpen} onOpenChange={setModalOpen} title={modalTipo === 'EGRESO' ? 'Registrar Egreso' : 'Ingreso Extra'}>

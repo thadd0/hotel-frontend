@@ -57,6 +57,17 @@ export async function cobrarLoteEmpresa(
   });
 }
 
+export async function cobrarLoteEmpresaPorIds(
+  ids: number[],
+  metodoPago: string
+): Promise<MovimientoCajaResponseDTO[]> {
+  return apiFetch('/api/recepcion/caja/cobrar-lote-ids', {
+    method: 'POST',
+    data: ids,
+    params: { metodoPago },
+  });
+}
+
 export async function deleteAllMovimientos(): Promise<void> {
   return apiFetch('/api/recepcion/caja', { method: 'DELETE' });
 }
