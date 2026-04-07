@@ -258,7 +258,7 @@ export default function Alquileres() {
 
       const updatedAlquiler = await refreshAlquiler(cuentaModal.id);
       if (updatedAlquiler) {
-        setCuentaModal((prev) => (prev ? { ...prev, pagoPendiente: updatedAlquiler.pagoPendiente } : prev));
+        setCuentaModal((prev) => (prev ? { ...prev, pagoPendiente: updatedAlquiler.pagoPendiente, totalPagadoCaja: updatedAlquiler.totalPagadoCaja } : prev));
       }
 
       if (editPopover?.id === id) setEditPopover(null);
@@ -290,7 +290,7 @@ export default function Alquileres() {
       setCuentaItems(prev => prev.map(x => x.id === c.id ? updated : x));
       const updatedAlquiler = await refreshAlquiler(cuentaModal.id);
       if (updatedAlquiler) {
-        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: updatedAlquiler.pagoPendiente } : prev);
+        setCuentaModal(prev => prev ? { ...prev, pagoPendiente: updatedAlquiler.pagoPendiente, totalPagadoCaja: updatedAlquiler.totalPagadoCaja } : prev);
       } else {
         setCuentaModal(prev => prev ? { ...prev, pagoPendiente: Math.max(0, parseFloat(prev.pagoPendiente) - c.subTotal) } : prev);
       }
@@ -309,10 +309,8 @@ export default function Alquileres() {
     const subTotal = parseFloat(editBasePrice);
     if (isNaN(subTotal) || subTotal < 0) { setEditBasePrice(null); return; }
     const totalConsumos = cuentaItems.reduce((sum, c) => sum + c.subTotal, 0);
-    const totalPagado = cuentaMovimientos
-      .filter(m => m.tipo === 'INGRESO')
-      .reduce((sum, m) => sum + parseFloat(m.monto), 0);
-    const pagoPendiente = Math.max(0, subTotal + totalConsumos - totalPagado);
+    const totalPagadoCaja = parseFloat(cuentaModal.totalPagadoCaja || 0);
+    const pagoPendiente = Math.max(0, subTotal + totalConsumos - totalPagadoCaja);
     setEditBasePrice(null);
     try {
       await patchAlquilerMontos(cuentaModal.id, { subTotal, pagoPendiente });
@@ -681,10 +679,7 @@ export default function Alquileres() {
           const basePrice = parseFloat(cuentaModal.subTotal || 0);
           const totalConsumos = cuentaItems.reduce((sum, c) => sum + c.subTotal, 0);
           const totalFactura = basePrice + totalConsumos;
-          const totalPagado = cuentaMovimientos
-            .filter(m => m.tipo === 'INGRESO')
-            .reduce((sum, m) => sum + parseFloat(m.monto), 0);
-          const saldoPendiente = Math.max(0, totalFactura - totalPagado);
+          const saldoPendiente = parseFloat(cuentaModal.pagoPendiente || 0);
           return (
             <>
               {/* Header */}
