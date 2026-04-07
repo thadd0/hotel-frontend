@@ -52,7 +52,7 @@ export async function getReporteMensualHabitacion(habitacionId: number, mes: num
   });
 }
 
-export async function previewDeleteHistorial(desde?: string, hasta?: string): Promise<{ cantidad: number; totalSubTotal: number; periodo: string }> {
+export async function previewDeleteHistorial(desde?: string, hasta?: string): Promise<{ cantidad: number; periodo: string }> {
   const params: Record<string, string> = {};
   if (desde) params.desde = desde;
   if (hasta) params.hasta = hasta;

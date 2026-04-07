@@ -993,8 +993,6 @@ export default function Alquileres() {
                     <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{deletePreview.periodo}</div>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Alquileres a eliminar</div>
                     <div style={{ fontSize: 13, fontWeight: 700, textAlign: 'right', color: 'var(--red, #e53935)' }}>{deletePreview.cantidad}</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total facturado</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>S/ {Number(deletePreview.totalSubTotal).toFixed(2)}</div>
                   </div>
                 </div>
               )}
