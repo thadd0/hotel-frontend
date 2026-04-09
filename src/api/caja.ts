@@ -31,10 +31,12 @@ export async function getMovimientosPorAlquiler(alquilerId: number): Promise<Mov
   return apiFetch(`/api/recepcion/caja/alquiler/${alquilerId}`);
 }
 
-export async function patchMovimientoMonto(id: number, monto: number): Promise<MovimientoCajaResponseDTO> {
+export async function patchMovimientoMonto(id: number, monto: number, metodoPago?: string): Promise<MovimientoCajaResponseDTO> {
+  const params: Record<string, unknown> = { monto };
+  if (metodoPago) params.metodoPago = metodoPago;
   return apiFetch(`/api/recepcion/caja/${id}/monto`, {
     method: 'PATCH',
-    params: { monto },
+    params,
   });
 }
 

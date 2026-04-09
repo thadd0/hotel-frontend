@@ -411,7 +411,10 @@ export function descargarReporteAlquileresActivos(alquileres) {
 /* ═══════════════════════════════════════════════════════════
    BOLETA DE CHECKOUT  (portrait A4)
    ═══════════════════════════════════════════════════════════ */
-export function generarBoletaCheckout(alquiler, consumos = [], movimientos = []) {
+export function generarBoletaCheckout(alquiler, consumos = [], movimientos = [], { isAdmin = true } = {}) {
+  const esEmpresa = Boolean(alquiler?.empresaNombre || alquiler?.empresaId);
+  const mostrarPrecios = isAdmin || !esEmpresa;
+
   const doc = new jsPDF();
   const pageW = doc.internal.pageSize.getWidth();
 
@@ -453,116 +456,156 @@ export function generarBoletaCheckout(alquiler, consumos = [], movimientos = [])
   doc.text('DETALLE DE CARGOS', 14, y);
   y += 6;
 
-  const itemCols = [
-    { label: 'Concepto', width: 80 },
-    { label: 'Cant.', width: 18 },
-    { label: 'P.Unit', width: 30, align: 'right' },
-    { label: 'Subtotal', width: 30, align: 'right' },
-  ];
+  if (mostrarPrecios) {
+    const itemCols = [
+      { label: 'Concepto', width: 80 },
+      { label: 'Cant.', width: 18 },
+      { label: 'P.Unit', width: 30, align: 'right' },
+      { label: 'Subtotal', width: 30, align: 'right' },
+    ];
 
-  y = drawTableHeader(doc, y, itemCols);
+    y = drawTableHeader(doc, y, itemCols);
 
-  /* Fila base: alquiler */
-  const precioFijado = Number(alquiler?.subTotal || 0);
-  drawRowBg(doc, y, 0);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...C.dark);
-  doc.text('Alquiler de habitación', 16, y);
-  doc.setTextColor(...C.mid);
-  doc.text('1', 96, y);
-  doc.setTextColor(...C.dark);
-  doc.text(`S/ ${precioFijado.toFixed(2)}`, 140, y, { align: 'right' });
-  doc.text(`S/ ${precioFijado.toFixed(2)}`, 170, y, { align: 'right' });
-  doc.setDrawColor(...C.line);
-  doc.line(14, y + 3, 172, y + 3);
-  y += 7;
-
-  /* Consumos adicionales */
-  (consumos || []).forEach((item, idx) => {
-    if (y > 260) {
-      doc.addPage();
-      y = 20;
-    }
-    drawRowBg(doc, y, idx + 1);
-    const desc = String(item?.descripcion || '—').slice(0, 45);
-    const cant = Number(item?.cantidad || 1);
-    const pu = Number(item?.precioUnit || 0);
-    const sub = Number(item?.subTotal || pu * cant);
-
+    /* Fila base: alquiler */
+    const precioFijado = Number(alquiler?.subTotal || 0);
+    drawRowBg(doc, y, 0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(...C.dark);
-    doc.text(desc, 16, y);
+    doc.text('Alquiler de habitación', 16, y);
     doc.setTextColor(...C.mid);
-    doc.text(String(cant), 96, y);
+    doc.text('1', 96, y);
     doc.setTextColor(...C.dark);
-    doc.text(`S/ ${pu.toFixed(2)}`, 140, y, { align: 'right' });
-    doc.text(`S/ ${sub.toFixed(2)}`, 170, y, { align: 'right' });
+    doc.text(`S/ ${precioFijado.toFixed(2)}`, 140, y, { align: 'right' });
+    doc.text(`S/ ${precioFijado.toFixed(2)}`, 170, y, { align: 'right' });
     doc.setDrawColor(...C.line);
     doc.line(14, y + 3, 172, y + 3);
     y += 7;
-  });
 
-  y += 4;
+    /* Consumos adicionales */
+    (consumos || []).forEach((item, idx) => {
+      if (y > 260) {
+        doc.addPage();
+        y = 20;
+      }
+      drawRowBg(doc, y, idx + 1);
+      const desc = String(item?.descripcion || '—').slice(0, 45);
+      const cant = Number(item?.cantidad || 1);
+      const pu = Number(item?.precioUnit || 0);
+      const sub = Number(item?.subTotal || pu * cant);
 
-  /* ─── Totales ─── */
-  const totalPagado = Number(alquiler?.totalPagadoCaja || 0);
-  const pendiente = Number(alquiler?.pagoPendiente || 0);
-  const totalGeneral = precioFijado + (consumos || []).reduce((s, c) => s + Number(c?.subTotal || 0), 0);
-
-  const totales = [
-    ['Total cargos', `S/ ${totalGeneral.toFixed(2)}`, C.dark],
-    ['Pagado', `S/ ${totalPagado.toFixed(2)}`, C.green],
-    ['Pendiente', `S/ ${pendiente.toFixed(2)}`, pendiente > 0 ? C.red : C.green],
-  ];
-
-  totales.forEach(([label, value, color]) => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...C.mid);
-    doc.text(label, 110, y);
-    doc.setTextColor(...color);
-    doc.text(value, 170, y, { align: 'right' });
-    y += 6;
-  });
-
-  y += 6;
-
-  /* ─── Historial de pagos ─── */
-  if (movimientos && movimientos.length > 0) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...C.accent);
-    doc.text('HISTORIAL DE PAGOS', 14, y);
-    y += 6;
-
-    const paymentCols = [
-      { label: 'Fecha', width: 42 },
-      { label: 'Concepto', width: 68 },
-      { label: 'Método', width: 28 },
-      { label: 'Monto', width: 30, align: 'right' },
-    ];
-
-    y = drawTableHeader(doc, y, paymentCols);
-
-    movimientos.forEach((m, idx) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      drawRowBg(doc, y, idx);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...C.mid);
-      doc.text(formatDateTime(m?.fecha), 16, y);
+      doc.setFontSize(9);
       doc.setTextColor(...C.dark);
-      doc.text(String(m?.concepto || '—').slice(0, 38), 58, y);
-      doc.setTextColor(...C.muted);
-      doc.text(String(m?.metodoPago || '—'), 126, y);
-      const monto = Number(m?.monto || 0);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...(m?.tipo === 'EGRESO' ? C.red : C.green));
-      doc.text(`S/ ${monto.toFixed(2)}`, 170, y, { align: 'right' });
+      doc.text(desc, 16, y);
+      doc.setTextColor(...C.mid);
+      doc.text(String(cant), 96, y);
+      doc.setTextColor(...C.dark);
+      doc.text(`S/ ${pu.toFixed(2)}`, 140, y, { align: 'right' });
+      doc.text(`S/ ${sub.toFixed(2)}`, 170, y, { align: 'right' });
+      doc.setDrawColor(...C.line);
+      doc.line(14, y + 3, 172, y + 3);
       y += 7;
     });
+
+    y += 4;
+
+    /* ─── Totales ─── */
+    const precioFijadoTotales = Number(alquiler?.subTotal || 0);
+    const totalPagado = Number(alquiler?.totalPagadoCaja || 0);
+    const pendiente = Number(alquiler?.pagoPendiente || 0);
+    const totalGeneral = precioFijadoTotales + (consumos || []).reduce((s, c) => s + Number(c?.subTotal || 0), 0);
+
+    const totales = [
+      ['Total cargos', `S/ ${totalGeneral.toFixed(2)}`, C.dark],
+      ['Pagado', `S/ ${totalPagado.toFixed(2)}`, C.green],
+      ['Pendiente', `S/ ${pendiente.toFixed(2)}`, pendiente > 0 ? C.red : C.green],
+    ];
+
+    totales.forEach(([label, value, color]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...C.mid);
+      doc.text(label, 110, y);
+      doc.setTextColor(...color);
+      doc.text(value, 170, y, { align: 'right' });
+      y += 6;
+    });
+
+    y += 6;
+
+    /* ─── Historial de pagos ─── */
+    if (movimientos && movimientos.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...C.accent);
+      doc.text('HISTORIAL DE PAGOS', 14, y);
+      y += 6;
+
+      const paymentCols = [
+        { label: 'Fecha', width: 42 },
+        { label: 'Concepto', width: 68 },
+        { label: 'Método', width: 28 },
+        { label: 'Monto', width: 30, align: 'right' },
+      ];
+
+      y = drawTableHeader(doc, y, paymentCols);
+
+      movimientos.forEach((m, idx) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        drawRowBg(doc, y, idx);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...C.mid);
+        doc.text(formatDateTime(m?.fecha), 16, y);
+        doc.setTextColor(...C.dark);
+        doc.text(String(m?.concepto || '—').slice(0, 38), 58, y);
+        doc.setTextColor(...C.muted);
+        doc.text(String(m?.metodoPago || '—'), 126, y);
+        const monto = Number(m?.monto || 0);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...(m?.tipo === 'EGRESO' ? C.red : C.green));
+        doc.text(`S/ ${monto.toFixed(2)}`, 170, y, { align: 'right' });
+        y += 7;
+      });
+    }
+  } else {
+    /* Recepcionista + cliente empresa: mostrar conceptos sin precios */
+    const itemColsOcultos = [
+      { label: 'Concepto', width: 110 },
+      { label: 'Cant.', width: 18 },
+    ];
+
+    y = drawTableHeader(doc, y, itemColsOcultos);
+
+    drawRowBg(doc, y, 0);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...C.dark);
+    doc.text('Alquiler de habitación', 16, y);
+    doc.setTextColor(...C.mid);
+    doc.text('1', 96, y);
+    doc.setDrawColor(...C.line);
+    doc.line(14, y + 3, 172, y + 3);
+    y += 7;
+
+    (consumos || []).forEach((item, idx) => {
+      if (y > 260) { doc.addPage(); y = 20; }
+      drawRowBg(doc, y, idx + 1);
+      const desc = String(item?.descripcion || '—').slice(0, 60);
+      const cant = Number(item?.cantidad || 1);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...C.dark);
+      doc.text(desc, 16, y);
+      doc.setTextColor(...C.mid);
+      doc.text(String(cant), 96, y);
+      doc.setDrawColor(...C.line);
+      doc.line(14, y + 3, 172, y + 3);
+      y += 7;
+    });
+
+    y += 4;
   }
 
   y += 10;

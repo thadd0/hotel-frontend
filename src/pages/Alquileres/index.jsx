@@ -191,6 +191,7 @@ export default function Alquileres() {
         alquiler,
         cuentasRes.status === 'fulfilled' ? cuentasRes.value : [],
         movsRes.status === 'fulfilled' ? movsRes.value : [],
+        { isAdmin },
       );
       addToast('Boleta generada', 'success');
     } catch (error) {

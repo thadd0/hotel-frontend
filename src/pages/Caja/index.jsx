@@ -118,6 +118,7 @@ export default function Caja() {
   // Edit monto state (admin only)
   const [editMontoModal, setEditMontoModal] = useState(null); // movimiento or null
   const [editMontoValue, setEditMontoValue] = useState('');
+  const [editMetodoPago, setEditMetodoPago] = useState('');
 
 
   // Cobrar empresa state (admin only)
@@ -788,9 +789,9 @@ export default function Caja() {
                 {isAdmin && (
                   <td style={tdStyle}>
                     <Btn variant="ghost" style={{ fontSize: 11, padding: '3px 8px' }}
-                      onClick={() => { setEditMontoModal(m); setEditMontoValue(String(parseFloat(m.monto).toFixed(2))); }}
+                      onClick={() => { setEditMontoModal(m); setEditMontoValue(String(parseFloat(m.monto).toFixed(2))); setEditMetodoPago(m.metodoPago || ''); }}
                       icon={<Pencil size={12} />}
-                      title="Editar monto">
+                      title="Editar monto y método de pago">
                       Editar
                     </Btn>
                   </td>
@@ -1048,7 +1049,7 @@ export default function Caja() {
       </Modal>
 
       {/* Edit monto modal — admin only */}
-      <Modal open={!!editMontoModal} onOpenChange={(open) => !open && setEditMontoModal(null)} title="Editar monto" width={380}>
+      <Modal open={!!editMontoModal} onOpenChange={(open) => !open && setEditMontoModal(null)} title="Editar movimiento" width={380}>
         {editMontoModal && (
           <>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
@@ -1067,19 +1068,29 @@ export default function Caja() {
                 />
               </div>
             </Field>
+            <Field label="Método de Pago">
+              <select
+                value={editMetodoPago}
+                onChange={e => setEditMetodoPago(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">Sin cambios</option>
+                {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </Field>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
               <Btn variant="ghost" onClick={() => setEditMontoModal(null)}>Cancelar</Btn>
               <Btn onClick={async () => {
                 const val = Number(editMontoValue);
                 if (!val || val <= 0) { addToast('Monto inválido', 'error'); return; }
                 try {
-                  await patchMovimientoMonto(editMontoModal.id, val);
-                  addToast('Monto actualizado', 'success');
+                  await patchMovimientoMonto(editMontoModal.id, val, editMetodoPago || undefined);
+                  addToast('Movimiento actualizado', 'success');
                   setEditMontoModal(null);
                   await fetchResumen();
                 } catch (error) {
                   const msg = error?.response?.data?.message;
-                  addToast(msg || 'Error al actualizar monto', 'error');
+                  addToast(msg || 'Error al actualizar movimiento', 'error');
                 }
               }}>Guardar</Btn>
             </div>
